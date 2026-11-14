@@ -7,6 +7,8 @@ import type { EngineClient } from './engine/client.ts';
 import { usableOxygenMin } from './engine/model.ts';
 import { clampConstraints } from './plan/constraints.ts';
 import type { WalkState } from './walk/hud.ts';
+import { IDLE_REPLAY, RING_STEP_MIN, advance, walkAt } from './walk/replay.ts';
+import type { Replay } from './walk/replay.ts';
 
 export type Mode = 'plan' | 'walk';
 
@@ -75,6 +77,18 @@ interface AppState {
   walk: WalkState | null;
   setWalk: (walk: WalkState | null) => void;
 
+  /** Simulated walk along the route (Walk mode). */
+  replay: Replay;
+  playWalk: () => void;
+  pauseWalk: () => void;
+  /** Back to the habitat with a full supply. */
+  resetWalk: () => void;
+  /** Jumps to a point in the walk, 0 (start) to 1 (home again). */
+  seekWalk: (fraction: number) => void;
+  setWalkSpeed: (speed: number) => void;
+  /** Advances the replay by `dtRealSec` of real time; called once per frame. */
+  tickWalk: (dtRealSec: number) => void;
+
   /** Engine factory; tests swap in a fake worker. */
   makeEngine: () => EngineClient;
 }
@@ -83,6 +97,9 @@ let engine: EngineClient | null = null;
 let engineGrid: GridData | null = null;
 let planSeq = 0;
 let ringSeq = 0;
+/** Oxygen value the last ring was requested for, and whether one is in flight. */
+let ringOxygen: number | null = null;
+let ringBusy = false;
 
 /** Returns the engine, initialised with `grid` (once per grid). */
 function engineFor(grid: GridData, make: () => EngineClient): EngineClient {
@@ -126,7 +143,14 @@ function customStop(cell: Cell, existing: Stop[]): Stop {
 /** App-wide UI state. Plan/Walk features add their slices here. */
 export const useAppStore = create<AppState>()((set, get) => ({
   mode: 'plan',
-  setMode: (mode) => set({ mode }),
+  setMode: (mode) => {
+    if (mode === get().mode) return;
+    // Leaving Walk pauses the replay; it resumes from the same spot.
+    const replay = get().replay;
+    set({ mode, replay: replay.status === 'playing' ? { ...replay, status: 'paused' } : replay });
+    // The ring means "now" in Walk and "as planned" in Plan.
+    if (mode === 'walk' || get().layers.ring) void get().planRing();
+  },
 
   data: { status: 'idle' },
   loadData: async (baseUrl = DATA_URL) => {
@@ -197,12 +221,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
     set({ route: { status: 'planning' } });
     try {
       const result = await engineFor(grid, get().makeEngine).route({ start: grid.meta.habitat, stops: get().stops, constraints: get().constraints });
-      if (seq === planSeq) set({ route: { status: 'ready', result } });
+      // A new route starts a new walk: the old position indexed the old path.
+      if (seq === planSeq) set({ route: { status: 'ready', result }, walk: null, replay: { ...IDLE_REPLAY, speed: get().replay.speed } });
     } catch (err) {
       if (seq === planSeq) set({ route: { status: 'error', message: errorMessage(err) } });
     }
     // Constraints changes reroute through here, so the ring follows them too.
-    if (get().layers.ring) await get().planRing();
+    if (get().layers.ring || get().mode === 'walk') await get().planRing();
   },
 
   layers: { difficulty: false, sand: false, ring: false },
@@ -216,26 +241,83 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const data = get().data;
     if (data.status !== 'ready') return;
     const seq = ++ringSeq;
-    const { oxygenMin, reservePct } = get().constraints;
+    const oxygen = ringOxygenNow(get());
+    ringOxygen = oxygen;
+    ringBusy = true;
     try {
-      const ring = await engineFor(data.grid, get().makeEngine).ring(usableOxygenMin(oxygenMin, reservePct));
+      const ring = await engineFor(data.grid, get().makeEngine).ring(oxygen);
       if (seq === ringSeq) set({ ring });
     } catch (err) {
       if (seq === ringSeq) {
         set({ ring: null });
         get().showNotice(`Couldn't compute the turn-back ring: ${errorMessage(err)}`);
       }
+    } finally {
+      if (seq === ringSeq) ringBusy = false;
     }
   },
 
   walk: null,
   setWalk: (walk) => set({ walk }),
 
+  replay: IDLE_REPLAY,
+  playWalk: () => {
+    const route = get().route;
+    if (route.status !== 'ready' || route.result.timeMin <= 0) return;
+    const replay = get().replay;
+    // Play from the end starts over.
+    const elapsedMin = replay.status === 'done' ? 0 : replay.elapsedMin;
+    moveWalk({ ...replay, status: 'playing', elapsedMin });
+  },
+  pauseWalk: () => {
+    if (get().replay.status === 'playing') set({ replay: { ...get().replay, status: 'paused' } });
+  },
+  resetWalk: () => {
+    set({ walk: null, replay: { ...IDLE_REPLAY, speed: get().replay.speed } });
+    if (get().mode === 'walk') void get().planRing();
+  },
+  seekWalk: (fraction) => {
+    const route = get().route;
+    if (route.status !== 'ready') return;
+    const replay = get().replay;
+    const elapsedMin = Math.min(1, Math.max(0, fraction)) * route.result.timeMin;
+    const status = elapsedMin >= route.result.timeMin ? 'done' : replay.status === 'playing' ? 'playing' : 'paused';
+    moveWalk({ ...replay, status, elapsedMin }, true);
+  },
+  setWalkSpeed: (speed) => set({ replay: { ...get().replay, speed } }),
+  tickWalk: (dtRealSec) => {
+    const route = get().route;
+    const replay = get().replay;
+    if (route.status !== 'ready' || replay.status !== 'playing') return;
+    moveWalk(advance(replay, dtRealSec, route.result.timeMin));
+  },
+
   makeEngine: createWorkerEngine,
 }));
 
+/** Usable oxygen the ring should be drawn for: right now in Walk mode, as planned otherwise. */
+function ringOxygenNow(s: AppState): number {
+  const { oxygenMin, reservePct } = s.constraints;
+  if (s.mode !== 'walk' || !s.walk) return usableOxygenMin(oxygenMin, reservePct);
+  return Math.max(0, s.walk.oxygenLeftMin - (oxygenMin * reservePct) / 100);
+}
+
+/** Applies a replay clock: moves the crew, and refreshes the ring as the oxygen drops. */
+function moveWalk(replay: Replay, forceRing = false): void {
+  const s = useAppStore.getState();
+  if (s.route.status !== 'ready' || s.data.status !== 'ready') return;
+  useAppStore.setState({ replay, walk: walkAt(s.route.result, s.constraints, s.data.grid.meta, replay.elapsedMin) });
+  if (useAppStore.getState().mode !== 'walk') return;
+  const oxygen = ringOxygenNow(useAppStore.getState());
+  const stale = ringOxygen === null || Math.abs(oxygen - ringOxygen) >= RING_STEP_MIN;
+  // One request at a time: the next tick picks up whatever changed meanwhile.
+  if (forceRing || replay.status === 'done' || (stale && !ringBusy)) void useAppStore.getState().planRing();
+}
+
 /** Drops the cached engine (tests, or after swapping the factory). */
 export function resetEngine(): void {
+  ringOxygen = null;
+  ringBusy = false;
   clearTimeout(replanTimer);
   engine?.terminate();
   engine = null;
