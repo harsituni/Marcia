@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EngineClient } from '../src/engine/client.ts';
-import { mockRoute } from '../src/engine/mockRouter.ts';
+import { handleMessage } from '../src/engine/worker.ts';
 import { LIMITS, clampConstraints } from '../src/plan/constraints.ts';
 import { DEFAULT_CONSTRAINTS, REPLAN_DELAY_MS, resetEngine, useAppStore } from '../src/store.ts';
 import { FakeWorker } from './fakeWorker.ts';
@@ -81,8 +81,11 @@ describe('setConstraints', () => {
     const data = store().data;
     expect(route.status).toBe('ready');
     if (route.status !== 'ready' || data.status !== 'ready') return;
-    const expected = mockRoute({ start: data.grid.meta.habitat, stops: store().stops, constraints: store().constraints }, data.grid.meta);
-    expect(route.result).toEqual(expected);
+    // Whatever engine the worker runs, the drawn route is its answer for the new constraints.
+    const { state } = handleMessage(null, { type: 'init', meta: data.grid.meta, cost: data.grid.cost });
+    const req = { start: data.grid.meta.habitat, stops: store().stops, constraints: store().constraints };
+    const expected = handleMessage(state, { type: 'route', req }).out;
+    expect(expected).toEqual({ type: 'route', result: route.result });
   });
 
   it('clamps values from the store too', () => {
