@@ -1,0 +1,65 @@
+[
+  {
+    "id": "stop-a",
+    "name": "Layered Outcrop",
+    "cell": {
+      "x": 40,
+      "y": 22
+    },
+    "goal": "Image the layers and sample the lowest bed.",
+    "geologyUnit": "Delta front",
+    "minerals": [
+      "clay",
+      "sulfate"
+    ],
+    "photo": "photos/stop-a.png",
+    "scienceValue": 3
+  },
+  {
+    "id": "stop-b",
+    "name": "Hill Flank Boulders",
+    "cell": {
+      "x": 80,
+      "y": 42
+    },
+    "goal": "Check boulders shed from the hilltop for olivine.",
+    "geologyUnit": "Crater floor fractured",
+    "minerals": [
+      "olivine",
+      "pyroxene"
+    ],
+    "photo": "photos/stop-b.png",
+    "scienceValue": 2
+  },
+  {
+    "id": "stop-c",
+    "name": "Sand Sheet Edge",
+    "cell": {
+      "x": 70,
+      "y": 66
+    },
+    "goal": "Trench the ripple crest and log grain size.",
+    "geologyUnit": "Aeolian sand",
+    "minerals": [
+      "basaltic sand"
+    ],
+    "photo": "photos/stop-c.png",
+    "scienceValue": 1
+  },
+  {
+    "id": "stop-d",
+    "name": "Crater Rim Ejecta",
+    "cell": {
+      "x": 20,
+      "y": 52
+    },
+    "goal": "Sample ejecta blocks on the north rim.",
+    "geologyUnit": "Impact ejecta",
+    "minerals": [
+      "carbonate",
+      "pyroxene"
+    ],
+    "photo": "photos/stop-d.png",
+    "scienceValue": 2
+  }
+]
