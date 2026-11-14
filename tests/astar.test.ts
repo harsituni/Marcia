@@ -9,6 +9,7 @@ import { MinHeap } from '../src/engine/heap.ts';
 import { handleMessage } from '../src/engine/worker.ts';
 import type { WorkerIn } from '../src/engine/worker.ts';
 import { DEFAULT_CONSTRAINTS } from '../src/store.ts';
+import { ENERGY_KJ_PER_MIN, OXYGEN_MIN_PER_MIN, STATS_ARE_ESTIMATES, WALK_SPEED_M_PER_MIN } from '../src/engine/model.ts';
 
 const CELL = 5;
 const BIG = { oxygenMin: 1e6, reservePct: 0, maxSlopeDeg: 25 };
@@ -379,5 +380,47 @@ describe('performance', () => {
     expect(res).not.toBeNull();
     expectValidPath(res!.path, cost, n);
     expect(t2 - t0).toBeLessThan(1000);
+  });
+});
+
+describe('route stats (M14)', () => {
+  const w = 12;
+  const meta = gridMeta(w, 12);
+  const engine = new AStar(meta, openGrid(w, 12));
+  const start = { x: 0, y: 0 };
+  const run = (stops: Stop[]) => astarRoute(engine, { start, stops, constraints: BIG }, meta);
+  /** time, energy and oxygen all follow from distance via the model.ts constants. */
+  function expectFromDistance(res: RouteResult, distanceM: number): void {
+    expect(res.distanceM).toBeCloseTo(distanceM, 6);
+    expect(res.timeMin).toBeCloseTo(distanceM / WALK_SPEED_M_PER_MIN, 6);
+    expect(res.energyKJ).toBeCloseTo(res.timeMin * ENERGY_KJ_PER_MIN, 6);
+    expect(res.oxygenUsedMin).toBeCloseTo(res.timeMin * OXYGEN_MIN_PER_MIN, 6);
+  }
+
+  it('straight out-and-back: distance = cells × cellSizeM', () => {
+    // 9 cells east to the stop and 9 back = 18 straight steps.
+    const res = run([stop('a', { x: 9, y: 0 })]);
+    expect(res.path).toHaveLength(19);
+    expectFromDistance(res, 18 * CELL);
+  });
+
+  it('diagonal out-and-back: each diagonal step counts √2 cells', () => {
+    const res = run([stop('a', { x: 5, y: 5 })]);
+    expectFromDistance(res, 10 * Math.SQRT2 * CELL);
+  });
+
+  it('two stops: stats cover every leg, including the walk home', () => {
+    // (0,0) → (6,0) → (6,4) → (0,0): 6 straight + 4 straight + (4 diagonal + 2 straight).
+    const res = run([stop('a', { x: 6, y: 0 }), stop('b', { x: 6, y: 4 })]);
+    expectFromDistance(res, (6 + 4 + 4 * Math.SQRT2 + 2) * CELL);
+  });
+
+  it('0 stops: every stat is 0', () => {
+    const res = run([]);
+    expect([res.distanceM, res.timeMin, res.energyKJ, res.oxygenUsedMin]).toEqual([0, 0, 0, 0]);
+  });
+
+  it('is flagged as an estimate for the UI', () => {
+    expect(STATS_ARE_ESTIMATES).toBe(true);
   });
 });
