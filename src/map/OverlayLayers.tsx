@@ -20,6 +20,8 @@ function toDataUrl(p: Pixels): string {
 export function OverlayLayers({ grid }: { grid: GridData }) {
   const layers = useAppStore((s) => s.layers);
   const ring = useAppStore((s) => s.ring);
+  // In Walk mode the ring is always on: it's the live turn-back line.
+  const showRing = useAppStore((s) => s.layers.ring || s.mode === 'walk');
   const { width, height } = grid.meta;
   const scale = overlayScale(width);
   const bounds = gridBounds(grid.meta);
@@ -38,7 +40,7 @@ export function OverlayLayers({ grid }: { grid: GridData }) {
     <Pane name="overlays" style={{ zIndex: 420 }}>
       {difficultyUrl && <ImageOverlay url={difficultyUrl} bounds={bounds} className="pixelated" />}
       {sandUrl && <ImageOverlay url={sandUrl} bounds={bounds} className="pixelated" />}
-      {layers.ring && ring && ring.polygon.length > 2 && (
+      {showRing && ring && ring.polygon.length > 2 && (
         <Polygon
           positions={ring.polygon.map(cellToLatLng)}
           interactive={false}

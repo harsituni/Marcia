@@ -8,6 +8,7 @@ import { formatDistance, formatDuration } from '../plan/profile.ts';
 import { useAppStore } from '../store.ts';
 import { compassTicks, deriveHud, formatHeading, relativeBearing } from './hud.ts';
 import type { HudState, NextTarget, Status } from './hud.ts';
+import { ReplayBar } from './ReplayBar.tsx';
 
 /** Okabe-Ito colours (as in the M17 overlays); always paired with a word and a shape. */
 const TONE: Record<Status, { color: string; shape: string }> = {
@@ -61,8 +62,12 @@ export function Hud() {
         <Compass hud={hud} />
         <MarginGauge hud={hud} />
       </div>
-      <div className="relative flex items-end justify-between gap-2">
+      {/* Phone: replay bar on its own row. Wider: along the bottom edge, between the two panels. */}
+      <div className="relative flex flex-wrap items-end justify-between gap-2">
         <MiniMap grid={data.grid} route={route.result} stops={stops} hud={hud} />
+        <div className="order-first w-full sm:order-none sm:w-auto sm:min-w-0 sm:flex-1">
+          <ReplayBar totalMin={route.result.timeMin} />
+        </div>
         <NextStopCard next={hud.next} headingDeg={hud.headingDeg} grid={data.grid} />
       </div>
     </section>
@@ -238,12 +243,17 @@ function MiniMap({ grid, route, stops, hud }: { grid: GridData; route: RouteResu
   }, [route]);
   const nextId = hud.next.kind === 'stop' ? hud.next.stop.id : null;
   const hab = grid.meta.habitat;
+  const ring = useAppStore((s) => s.ring);
+  const ringPoints = useMemo(() => (ring && ring.polygon.length > 2 ? ring.polygon.map((c) => `${c.x + 0.5},${c.y + 0.5}`).join(' ') : null), [ring]);
 
   return (
     <div role="img" aria-label="Mini-map: whole site with the route and your position" className={`${PANEL} relative w-28 shrink-0 overflow-hidden sm:w-44`}>
       <svg viewBox={`0 0 ${width} ${height}`} className="block w-full">
         <image href={grid.basemapUrl} width={width} height={height} preserveAspectRatio="none" />
         <rect width={width} height={height} fill="rgb(0 0 0 / 0.3)" />
+        {ringPoints && (
+          <polygon points={ringPoints} fill="rgb(86 180 233 / 0.12)" stroke="#56B4E9" strokeWidth={1.2 * u} strokeDasharray={`${3 * u} ${2 * u}`} strokeLinejoin="round" />
+        )}
         <polyline points={home} fill="none" stroke="#fff" strokeWidth={1.2 * u} strokeDasharray={`${1.5 * u} ${3 * u}`} strokeLinecap="round" />
         <polyline points={out} fill="none" stroke="#fff" strokeWidth={1.2 * u} strokeLinejoin="round" />
         <rect x={hab.x + 0.5 - 2.5 * u} y={hab.y + 0.5 - 2.5 * u} width={5 * u} height={5 * u} rx={u} fill="#f5ede8" stroke="#1b1210" strokeWidth={0.6 * u} />
@@ -293,7 +303,7 @@ function NextStopCard({ next, headingDeg, grid }: { next: NextTarget; headingDeg
     <div
       role="group"
       aria-label={`Next stop: ${title}, ${formatDistance(next.distanceM)} away`}
-      className={`${PANEL} flex min-w-0 flex-1 items-stretch gap-2.5 overflow-hidden p-2 sm:max-w-sm`}
+      className={`${PANEL} flex min-w-0 flex-1 items-stretch gap-2.5 overflow-hidden p-2 sm:w-80 sm:flex-none`}
     >
       <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-white/10 sm:h-20 sm:w-20">
         {photo ? (
