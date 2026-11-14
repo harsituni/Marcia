@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { CRS } from 'leaflet';
 import type { LatLngBoundsLiteral, LeafletEventHandlerFnMap, Marker as LeafletMarker } from 'leaflet';
-import { ImageOverlay, MapContainer, Marker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet';
+import { ImageOverlay, MapContainer, Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import type { Stop } from '../contracts.ts';
 import type { GridData } from '../data/grid.ts';
 import { useAppStore } from '../store.ts';
@@ -40,7 +40,7 @@ export function MapView() {
       </MapContainer>
       {editing && (
         <p className="pointer-events-none absolute top-3 left-1/2 z-[1000] -translate-x-1/2 rounded-md bg-black/60 px-3 py-1.5 text-xs whitespace-nowrap">
-          Click the map to add a stop · drag a pin to move it · click a pin to remove it
+          Click the map to add a stop · drag a pin to move it · click a pin for details
         </p>
       )}
       {notice && (
@@ -114,11 +114,15 @@ function StopMarkers({ editable }: { editable: boolean }) {
 
 function StopMarker({ stop, n, editable }: { stop: Stop; n: number; editable: boolean }) {
   const moveStop = useAppStore((s) => s.moveStop);
-  const removeStop = useAppStore((s) => s.removeStop);
+  const selectStop = useAppStore((s) => s.selectStop);
+  const selected = useAppStore((s) => s.selectedStopId === stop.id);
   const showNotice = useAppStore((s) => s.showNotice);
 
   const handlers = useMemo<LeafletEventHandlerFnMap>(
     () => ({
+      click() {
+        selectStop(stop.id);
+      },
       dragend(e) {
         const marker = e.target as LeafletMarker;
         const { lat, lng } = marker.getLatLng();
@@ -129,13 +133,13 @@ function StopMarker({ stop, n, editable }: { stop: Stop; n: number; editable: bo
         marker.setLatLng(cellToLatLng(ok ? cell : stop.cell));
       },
     }),
-    [stop.id, stop.cell, moveStop, showNotice],
+    [stop.id, stop.cell, moveStop, showNotice, selectStop],
   );
 
   return (
     <Marker
       position={cellToLatLng(stop.cell)}
-      icon={stopIcon(n)}
+      icon={stopIcon(n, selected)}
       title={`${n}. ${stop.name}`}
       draggable={editable}
       autoPan
@@ -148,24 +152,6 @@ function StopMarker({ stop, n, editable }: { stop: Stop; n: number; editable: bo
         <br />
         {stop.geologyUnit} · science {'★'.repeat(stop.scienceValue)}
       </Tooltip>
-      {editable && (
-        <Popup closeButton={false} offset={[0, -10]}>
-          <div className="flex items-center gap-3">
-            <span className="font-semibold">
-              {n}. {stop.name}
-            </span>
-            <button
-              type="button"
-              // Remove after the click finishes; removing the popup mid-click
-              // lets the click fall through to the map and add a stop there.
-              onClick={() => setTimeout(() => removeStop(stop.id), 0)}
-              className="rounded bg-red-700 px-2 py-1 text-xs font-semibold text-white hover:bg-red-600"
-            >
-              Remove
-            </button>
-          </div>
-        </Popup>
-      )}
     </Marker>
   );
 }

@@ -13,20 +13,21 @@ export const habitatIcon = divIcon({
   tooltipAnchor: [0, -16],
 });
 
-const stopIcons = new Map<number, ReturnType<typeof divIcon>>();
+const stopIcons = new Map<string, ReturnType<typeof divIcon>>();
 
 /** Numbered stop pin; `n` is the 1-based visiting order. */
-export function stopIcon(n: number) {
-  let icon = stopIcons.get(n);
+export function stopIcon(n: number, selected = false) {
+  const key = `${n}${selected ? 's' : ''}`;
+  let icon = stopIcons.get(key);
   if (!icon) {
     icon = divIcon({
-      className: 'pin pin-stop',
+      className: selected ? 'pin pin-stop pin-selected' : 'pin pin-stop',
       html: `<span>${n}</span>`,
       iconSize: [26, 26],
       iconAnchor: [13, 13],
       tooltipAnchor: [0, -14],
     });
-    stopIcons.set(n, icon);
+    stopIcons.set(key, icon);
   }
   return icon;
 }

@@ -11,6 +11,11 @@ export interface GridData {
   basemapUrl: string;
 }
 
+/** URL of a file in the grid's data directory, e.g. a stop's `photo`. */
+export function dataFileUrl(grid: Pick<GridData, 'basemapUrl'>, path: string): string {
+  return grid.basemapUrl.replace(/[^/]*$/, '') + path.replace(/^\//, '');
+}
+
 export interface RawGridFiles {
   meta: GridMeta;
   cost: ArrayBuffer;

@@ -44,6 +44,10 @@ interface AppState {
   moveStop: (id: string, cell: Cell) => boolean;
   removeStop: (id: string) => void;
 
+  /** Stop whose card is open, if any. */
+  selectedStopId: string | null;
+  selectStop: (id: string | null) => void;
+
   /** Short message shown over the map, cleared after a few seconds. */
   notice: string | null;
   showNotice: (message: string) => void;
@@ -124,6 +128,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       set({
         data: { status: 'ready', grid },
         stops: grid.stops,
+        selectedStopId: null,
         constraints: clampConstraints(get().constraints, grid.meta.maxSlopeDeg),
       });
     } catch (err) {
@@ -149,9 +154,15 @@ export const useAppStore = create<AppState>()((set, get) => ({
     return true;
   },
   removeStop: (id) => {
-    set({ stops: get().stops.filter((s) => s.id !== id) });
+    set({
+      stops: get().stops.filter((s) => s.id !== id),
+      selectedStopId: get().selectedStopId === id ? null : get().selectedStopId,
+    });
     void get().planRoute();
   },
+
+  selectedStopId: null,
+  selectStop: (id) => set({ selectedStopId: id && get().stops.some((s) => s.id === id) ? id : null }),
 
   notice: null,
   showNotice: (message) => {
