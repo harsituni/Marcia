@@ -5,6 +5,7 @@ import type { GridData } from '../data/grid.ts';
 import { useAppStore } from '../store.ts';
 import { cellToLatLng, gridBounds } from './coords.ts';
 import { habitatIcon, stopIcon } from './pins.ts';
+import { RouteLayer, RouteLegend } from './RouteLayer.tsx';
 
 /**
  * Grid-space map: CRS.Simple, so one Leaflet unit = one grid cell.
@@ -12,6 +13,7 @@ import { habitatIcon, stopIcon } from './pins.ts';
  */
 export function MapView() {
   const data = useAppStore((s) => s.data);
+  const route = useAppStore((s) => s.route);
 
   return (
     <>
@@ -25,13 +27,20 @@ export function MapView() {
         className="h-full w-full"
       >
         {data.status === 'ready' && <GridLayers grid={data.grid} />}
+        {route.status === 'ready' && <RouteLayer route={route.result} />}
       </MapContainer>
+      {route.status === 'ready' && <RouteLegend />}
       {data.status !== 'ready' && (
         <div className="pointer-events-none absolute inset-0 z-[1000] flex items-center justify-center">
           <p className="rounded-md bg-black/60 px-4 py-2 text-sm">
             {data.status === 'error' ? `Couldn't load map data: ${data.message}` : 'Loading map data…'}
           </p>
         </div>
+      )}
+      {route.status === 'error' && (
+        <p className="absolute bottom-4 left-1/2 z-[1000] -translate-x-1/2 rounded-md bg-red-900/80 px-4 py-2 text-sm">
+          Couldn't plan the route: {route.message}
+        </p>
       )}
     </>
   );
