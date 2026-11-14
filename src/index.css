@@ -1,0 +1,22 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-mars: #c1440e;
+  --color-regolith: #1b1210;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--color-regolith);
+  color: #f5ede8;
+}
+
+/* Unlayered so it beats leaflet.css (Tailwind utilities live in a layer). */
+.leaflet-container {
+  background: var(--color-regolith);
+}
