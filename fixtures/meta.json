@@ -1,0 +1,10 @@
+{
+  "width": 100,
+  "height": 100,
+  "cellSizeM": 5,
+  "maxSlopeDeg": 25,
+  "habitat": {
+    "x": 15,
+    "y": 15
+  }
+}
