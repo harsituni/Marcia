@@ -7,10 +7,11 @@
  * handler below never runs on the main thread. `checkAlerts` is a plain
  * function in `./alerts.ts` for the same reason.
  *
- * Until M07 lands, `route`, `ring` and `replan` answer from the mock router.
+ * `route` and `replan` use A* (M07). `ring` still answers from the mock router.
  */
 import type { Cell, Constraints, GridMeta, RingResult, RouteRequest, RouteResult, Stop } from '../contracts.ts';
-import { mockRing, mockRoute } from './mockRouter.ts';
+import { AStar, astarRoute } from './astar.ts';
+import { mockRing } from './mockRouter.ts';
 
 export type WorkerIn =
   /** Send once after loading the data. Transfer `cost.buffer` to avoid a copy. */
@@ -27,6 +28,7 @@ export type WorkerOut =
 interface EngineState {
   meta: GridMeta;
   cost: Float32Array;
+  astar: AStar;
 }
 
 /** Message handler, exported so tests can drive it without a real worker. */
@@ -36,18 +38,18 @@ export function handleMessage(state: EngineState | null, msg: WorkerIn): { state
     if (msg.cost.length !== expected) {
       return { state, out: { type: 'error', message: `cost has ${msg.cost.length} cells, expected ${expected}` } };
     }
-    return { state: { meta: msg.meta, cost: msg.cost } };
+    return { state: { meta: msg.meta, cost: msg.cost, astar: new AStar(msg.meta, msg.cost) } };
   }
   if (!state) return { state, out: { type: 'error', message: `'${msg.type}' sent before 'init'` } };
 
   switch (msg.type) {
     case 'route':
-      return { state, out: { type: 'route', result: mockRoute(msg.req, state.meta) } };
+      return { state, out: { type: 'route', result: astarRoute(state.astar, msg.req, state.meta) } };
     case 'ring':
       return { state, out: { type: 'ring', result: mockRing(state.meta.habitat, msg.oxygenLeftMin, state.meta) } };
     case 'replan': {
       const constraints = { ...msg.constraints, oxygenMin: msg.oxygenLeftMin };
-      return { state, out: { type: 'route', result: mockRoute({ start: msg.from, stops: msg.stops, constraints }, state.meta) } };
+      return { state, out: { type: 'route', result: astarRoute(state.astar, { start: msg.from, stops: msg.stops, constraints }, state.meta) } };
     }
   }
 }
