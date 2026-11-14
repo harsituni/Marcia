@@ -221,6 +221,69 @@ describe('A* on the 100×100 fixture', () => {
     const res = astarRoute(astar, { start: meta.habitat, stops, constraints: DEFAULT_CONSTRAINTS }, meta);
     expect(res.path.some(blocked)).toBe(false);
   });
+
+  // M10: multi-stop routes on the fixture.
+  const byId = (id: string) => stops.find((s) => s.id === id)!;
+  const route = (list: Stop[]) => astarRoute(astar, { start: meta.habitat, stops: list, constraints: DEFAULT_CONSTRAINTS }, meta);
+
+  /** Legs chain end-to-start, cover the whole path, and each ends on its target. */
+  function expectChained(res: RouteResult, list: Stop[]): void {
+    expect(res.path[0]).toEqual(meta.habitat);
+    expect(res.path.at(-1)).toEqual(meta.habitat);
+    expect(res.legs[0]!.startIdx).toBe(0);
+    expect(res.legs.at(-1)!.endIdx).toBe(res.path.length - 1);
+    for (let i = 0; i + 1 < res.legs.length; i++) expect(res.legs[i]!.endIdx).toBe(res.legs[i + 1]!.startIdx);
+    for (const leg of res.legs) {
+      expect(res.path[leg.startIdx]).toEqual(leg.fromId === START_ID ? meta.habitat : byId(leg.fromId).cell);
+      expect(res.path[leg.endIdx]).toEqual(leg.toId === START_ID ? meta.habitat : byId(leg.toId).cell);
+    }
+    expect(res.legs.map((l) => l.toId)).toEqual([...list.map((s) => s.id), START_ID]);
+    expectValidPath(res.path, cost, meta.width);
+  }
+
+  it('0 stops → path is just the habitat, with no legs', () => {
+    const res = route([]);
+    expect(res.path).toEqual([meta.habitat]);
+    expect(res.legs).toEqual([]);
+    expect(res.outOfRangeIds).toEqual([]);
+    expect(res.distanceM).toBe(0);
+  });
+
+  it('2 stops → 3 chained legs: start→A, A→B, B→start', () => {
+    const list = [byId('stop-a'), byId('stop-c')];
+    const res = route(list);
+    expect(res.legs.map((l) => [l.fromId, l.toId])).toEqual([
+      [START_ID, 'stop-a'],
+      ['stop-a', 'stop-c'],
+      ['stop-c', START_ID],
+    ]);
+    expectChained(res, list);
+  });
+
+  it('visits stops in the given order, not reordered', () => {
+    const forward = stops;
+    const reversed = [...stops].reverse();
+    const shuffled = ['stop-c', 'stop-a', 'stop-d', 'stop-b'].map(byId);
+    for (const list of [forward, reversed, shuffled]) expectChained(route(list), list);
+    // A different order is a different walk, not the same route relabelled.
+    expect(route(reversed).path).not.toEqual(route(forward).path);
+  });
+
+  it('an unreachable stop goes in outOfRangeIds and the route carries on to the next stop', () => {
+    // (69, 25) is open ground with no path from the habitat (walled off by steep cells).
+    const island = { ...byId('stop-b'), id: 'island', cell: { x: 69, y: 25 } };
+    expect(Number.isFinite(cost[island.cell.y * meta.width + island.cell.x]!)).toBe(true);
+    expect(astar.findPath(meta.habitat, island.cell)).toBeNull();
+
+    const res = route([byId('stop-a'), island, byId('stop-d')]);
+    expect(res.outOfRangeIds).toEqual(['island']);
+    expect(res.legs.map((l) => [l.fromId, l.toId])).toEqual([
+      [START_ID, 'stop-a'],
+      ['stop-a', 'stop-d'],
+      ['stop-d', START_ID],
+    ]);
+    expectChained(res, [byId('stop-a'), byId('stop-d')]);
+  });
 });
 
 describe('worker contract', () => {
