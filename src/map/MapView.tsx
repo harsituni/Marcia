@@ -1,6 +1,6 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { CRS } from 'leaflet';
-import type { LeafletEventHandlerFnMap, Marker as LeafletMarker } from 'leaflet';
+import type { LatLngBoundsLiteral, LeafletEventHandlerFnMap, Marker as LeafletMarker } from 'leaflet';
 import { ImageOverlay, MapContainer, Marker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import type { Stop } from '../contracts.ts';
 import type { GridData } from '../data/grid.ts';
@@ -34,6 +34,7 @@ export function MapView() {
         {route.status === 'ready' && <RouteLayer route={route.result} />}
         {data.status === 'ready' && <StopMarkers editable={editing} />}
         {editing && <AddStopOnClick />}
+        <ResizeWithContainer bounds={data.status === 'ready' ? gridBounds(data.grid.meta) : null} />
       </MapContainer>
       {editing && (
         <p className="pointer-events-none absolute top-3 left-1/2 z-[1000] -translate-x-1/2 rounded-md bg-black/60 px-3 py-1.5 text-xs whitespace-nowrap">
@@ -164,4 +165,33 @@ function StopMarker({ stop, n, editable }: { stop: Stop; n: number; editable: bo
       )}
     </Marker>
   );
+}
+
+/**
+ * Leaflet only tracks window resizes; this also catches layout changes (e.g.
+ * the route panel opening). Until the user zooms or pans, it refits the grid
+ * so the whole site stays in view.
+ */
+function ResizeWithContainer({ bounds }: { bounds: LatLngBoundsLiteral | null }) {
+  const map = useMap();
+  const boundsRef = useRef(bounds);
+  boundsRef.current = bounds;
+
+  useEffect(() => {
+    let userMoved = false;
+    const el = map.getContainer();
+    const mark = () => (userMoved = true);
+    const events = ['pointerdown', 'wheel', 'keydown'] as const;
+    events.forEach((e) => el.addEventListener(e, mark, { passive: true }));
+    const ro = new ResizeObserver(() => {
+      map.invalidateSize();
+      if (!userMoved && boundsRef.current) map.fitBounds(boundsRef.current, { padding: [16, 16] });
+    });
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      events.forEach((e) => el.removeEventListener(e, mark));
+    };
+  }, [map]);
+  return null;
 }
