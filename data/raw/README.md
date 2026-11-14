@@ -13,6 +13,7 @@ git-ignored. Don't commit rasters.
 | `ortho_5m.tif`  | HiRISE RED ortho image                    | average    | 0                 |
 | `ti_5m.tif`     | Thermal inertia (optional), Float32       | bilinear   | -9999             |
 | `slope_5m.tif`  | Slope (degrees), Float32 (M09)            | Horn 3×3   | none (checked)    |
+| `sand_5m.tif`   | Soft-sand mask, Byte, 1 = sand (M12)      | from TI    | none (0 = not)    |
 
 All outputs share one grid: 600 × 600 cells at 5 m, covering the
 site.json bounds exactly. They are GeoTIFFs with DEFLATE compression and tiling.
@@ -36,6 +37,25 @@ as `elev_5m.tif` and no nodata cells. It finds GDAL the same way as
 maths in TypeScript, including GDAL's edge handling, for tests and for later
 steps that need slope without GDAL (M16, `cost.bin`). It matches gdaldem to
 within 0.003° on every cell.
+
+## Sand mask (M12)
+
+`ti_5m.tif` is the Zenodo Jezero thermal-inertia map (100 m pixels), resampled
+bilinearly onto the elevation grid by `npm run fetch:clip`. So the mask only
+resolves features about 100 m across or larger.
+
+```sh
+npm run compute:sand   # after npm run fetch:clip
+```
+
+The script writes `sand_5m.tif` (1 = sand, 0 = not sand) using `sandMask()` in
+`scripts/compute-sand.ts`, and fails unless the result has the same size,
+geotransform and CRS as `elev_5m.tif`. A cell is sand when TI < `SAND_TI_MAX`,
+which is 200 J m⁻² K⁻¹ s⁻½. A cell exactly at 200 isn't sand, and nodata is
+never sand. The threshold is an **estimate chosen from this site's TI
+distribution** (154–282, median ≈ 227, a single peak with no separate low-TI
+cluster). It flags about 16% of cells. Change it only in that one constant.
+M16 reuses `sandMask()` to write `public/data/sand.bin`.
 
 ## Sources
 
