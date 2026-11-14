@@ -4,6 +4,7 @@ import { RoutePanel } from './plan/RoutePanel.tsx';
 import { SettingsPanel } from './plan/SettingsPanel.tsx';
 import { StopCard } from './plan/StopCard.tsx';
 import { useAppStore } from './store.ts';
+import { Hud } from './walk/Hud.tsx';
 import type { Mode } from './store.ts';
 
 const MODES: { id: Mode; label: string }[] = [
@@ -43,9 +44,10 @@ export function App() {
         </div>
       </header>
       <main className="flex min-h-0 flex-1 flex-col">
-        <div className="relative min-h-0 flex-1">
+        <div className={`relative min-h-0 flex-1 ${mode === 'walk' ? 'walk-mode' : ''}`}>
           <MapView />
           {mode === 'plan' && <SettingsPanel />}
+          {mode === 'walk' && <Hud />}
           <StopCard />
         </div>
         {mode === 'plan' && <RoutePanel />}
