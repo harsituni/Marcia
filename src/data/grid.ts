@@ -42,7 +42,7 @@ export function parseGrid(raw: RawGridFiles, basemapUrl: string): GridData {
   return { meta, cost, elevation, sand, stops: raw.stops, basemapUrl };
 }
 
-/** Loads a data directory, e.g. `/data` (real) or the fixtures folder (mock). */
+/** Loads a data directory: `/data` in the app; tests point it at `fixtures/`. */
 export async function loadGrid(baseUrl: string): Promise<GridData> {
   const url = (f: string) => `${baseUrl.replace(/\/$/, '')}/${f}`;
   const get = async (f: string) => {

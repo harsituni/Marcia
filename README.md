@@ -35,8 +35,8 @@ Set up in M02:
 
 ### Runtime grid files
 
-The file formats are defined in M01 (`src/contracts.ts`). The files live in
-`fixtures/` for now and will move to `public/data/` later.
+The file formats are defined in M01 (`src/contracts.ts`). The app loads the
+real Jezero files from `public/data/`.
 
 | File | Contents |
 | --- | --- |
@@ -47,8 +47,8 @@ The file formats are defined in M01 (`src/contracts.ts`). The files live in
 | `basemap.png` | Map image aligned to the grid |
 | `stops.json` | Candidate science stops |
 
-The current files are small synthetic fixtures. Real NASA-derived grids replace
-them in M06 and M12.
+`fixtures/` holds a small synthetic 100 × 100 grid in the same formats. Only
+the tests use it.
 
 ## Team split
 

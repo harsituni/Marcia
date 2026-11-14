@@ -11,7 +11,7 @@ import { START_ID } from '../contracts.ts';
 import type { Cell, GridMeta, RouteLeg, RouteRequest, RouteResult } from '../contracts.ts';
 import { MinHeap } from './heap.ts';
 import type { HomeField } from './ring.ts';
-import { pathLengthM } from './mockRouter.ts';
+import { pathLengthM } from './path.ts';
 import { ENERGY_KJ_PER_MIN, OXYGEN_MIN_PER_MIN, WALK_SPEED_M_PER_MIN, usableOxygenMin } from './model.ts';
 
 const SQRT2 = Math.SQRT2;

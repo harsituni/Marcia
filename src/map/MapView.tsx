@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { CRS } from 'leaflet';
+import { CRS, latLngBounds } from 'leaflet';
 import type { LatLngBoundsLiteral, LeafletEventHandlerFnMap, Marker as LeafletMarker } from 'leaflet';
 import { ImageOverlay, MapContainer, Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import type { Stop } from '../contracts.ts';
@@ -75,8 +75,9 @@ function GridLayers({ grid }: { grid: GridData }) {
   const bounds = gridBounds(grid.meta);
 
   useEffect(() => {
-    map.fitBounds(bounds, { padding: [16, 16] });
-    map.setMaxBounds(map.getBounds().pad(0.5));
+    map.fitBounds(bounds, { padding: [16, 16], animate: false });
+    // Pan limits come from the grid, not the current view (which may still be mid-fit).
+    map.setMaxBounds(latLngBounds(bounds).pad(0.5));
     // Refit only when the grid size changes, not on every render.
   }, [map, grid.meta.width, grid.meta.height]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -178,7 +179,7 @@ function ResizeWithContainer({ bounds }: { bounds: LatLngBoundsLiteral | null })
     events.forEach((e) => el.addEventListener(e, mark, { passive: true }));
     const ro = new ResizeObserver(() => {
       map.invalidateSize();
-      if (!userMoved && boundsRef.current) map.fitBounds(boundsRef.current, { padding: [16, 16] });
+      if (!userMoved && boundsRef.current) map.fitBounds(boundsRef.current, { padding: [16, 16], animate: false });
     });
     ro.observe(el);
     return () => {

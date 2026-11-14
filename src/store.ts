@@ -10,8 +10,8 @@ import type { WalkState } from './walk/hud.ts';
 
 export type Mode = 'plan' | 'walk';
 
-/** Where the grid data comes from. M22 switches this to the real `data/`. */
-export const DATA_URL = `${import.meta.env?.BASE_URL ?? '/'}fixtures`;
+/** Where the grid data comes from: the real Jezero files in `public/data/`. */
+export const DATA_URL = `${import.meta.env?.BASE_URL ?? '/'}data`;
 
 /** Starting constraints; the crew edits them in the settings panel. */
 export const DEFAULT_CONSTRAINTS: Constraints = { oxygenMin: 480, reservePct: 20, maxSlopeDeg: 25 };
