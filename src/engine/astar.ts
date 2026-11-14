@@ -10,6 +10,7 @@
 import { START_ID } from '../contracts.ts';
 import type { Cell, GridMeta, RouteLeg, RouteRequest, RouteResult } from '../contracts.ts';
 import { MinHeap } from './heap.ts';
+import type { HomeField } from './ring.ts';
 import { pathLengthM } from './mockRouter.ts';
 import { ENERGY_KJ_PER_MIN, OXYGEN_MIN_PER_MIN, WALK_SPEED_M_PER_MIN, usableOxygenMin } from './model.ts';
 
@@ -173,9 +174,20 @@ function minutesFor(distanceM: number): number {
   return distanceM / WALK_SPEED_M_PER_MIN;
 }
 
+/** Walking minutes along the cheapest path from `from` back to `to`, or Infinity. */
+function minutesBack(engine: AStar, from: Cell, to: Cell, meta: GridMeta): number {
+  const back = engine.findPath(from, to);
+  return back ? minutesFor(pathLengthM(back.path, meta.cellSizeM)) : Infinity;
+}
+
 /**
  * Real-engine counterpart of `mockRoute`: start → each stop in order → start,
  * each leg an A* path.
+ *
+ * `home` (optional) is the habitat's cached Dijkstra field (M18). When the
+ * route starts at its source, the "can I get home from this stop" check reads
+ * it instead of running one A* per stop; otherwise (e.g. replan from the
+ * current position) the per-stop A* check is used. Same rule either way.
  *
  * A stop with no path from the previous waypoint is skipped and listed in
  * `outOfRangeIds` (the contract has no separate failure field); the route
@@ -189,7 +201,7 @@ function minutesFor(distanceM: number): number {
  * Cell cost only steers which path is taken. With no reachable stop, all
  * four are 0.
  */
-export function astarRoute(engine: AStar, req: RouteRequest, meta: GridMeta): RouteResult {
+export function astarRoute(engine: AStar, req: RouteRequest, meta: GridMeta, home?: HomeField): RouteResult {
   const { start, stops, constraints } = req;
   const startCell = { x: Math.round(start.x), y: Math.round(start.y) };
   const budget = usableOxygenMin(constraints.oxygenMin, constraints.reservePct);
@@ -199,6 +211,8 @@ export function astarRoute(engine: AStar, req: RouteRequest, meta: GridMeta): Ro
   const outOfRangeIds: string[] = [];
   let elapsedMin = 0;
   let from = { id: START_ID as string, cell: startCell };
+  // The cached Dijkstra field answers "minutes home from this stop" only when the route starts at its source.
+  const homeFromStart = home && home.source.x === startCell.x && home.source.y === startCell.y ? home : undefined;
 
   const appendLeg = (toId: string, seg: Cell[]) => {
     const startIdx = path.length - 1;
@@ -215,8 +229,7 @@ export function astarRoute(engine: AStar, req: RouteRequest, meta: GridMeta): Ro
     appendLeg(stop.id, leg.path);
     elapsedMin += minutesFor(pathLengthM(leg.path, meta.cellSizeM));
 
-    const back = engine.findPath(stop.cell, startCell);
-    const backMin = back ? minutesFor(pathLengthM(back.path, meta.cellSizeM)) : Infinity;
+    const backMin = homeFromStart ? homeFromStart.minutesFrom(stop.cell) : minutesBack(engine, stop.cell, startCell, meta);
     if ((elapsedMin + backMin) * OXYGEN_MIN_PER_MIN > budget) outOfRangeIds.push(stop.id);
     from = { id: stop.id, cell: leg.path[leg.path.length - 1]! };
   }
