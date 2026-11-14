@@ -20,3 +20,31 @@ body {
 .leaflet-container {
   background: var(--color-regolith);
 }
+
+/* Map pins (Leaflet divIcons, see src/map/pins.ts). */
+.pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  border-radius: 9999px;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.6);
+}
+
+.pin-stop {
+  background: var(--color-mars);
+  color: #fff;
+  font: 700 13px/1 ui-sans-serif, system-ui, sans-serif;
+}
+
+.pin-habitat {
+  background: #f5ede8;
+  border-color: var(--color-regolith);
+  border-radius: 6px;
+}
+
+.pin-habitat svg {
+  width: 20px;
+  height: 20px;
+  fill: var(--color-regolith);
+}

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { MapView } from './map/MapView.tsx';
 import { useAppStore } from './store.ts';
 import type { Mode } from './store.ts';
@@ -10,6 +11,11 @@ const MODES: { id: Mode; label: string }[] = [
 export function App() {
   const mode = useAppStore((s) => s.mode);
   const setMode = useAppStore((s) => s.setMode);
+  const loadData = useAppStore((s) => s.loadData);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
 
   return (
     <div className="flex h-full flex-col">
