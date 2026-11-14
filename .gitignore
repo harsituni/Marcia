@@ -2,3 +2,9 @@ node_modules/
 dist/
 coverage/
 .DS_Store
+
+# M06 raw rasters (regenerate with scripts/fetch-clip.ps1)
+data/raw/**/*.tif
+data/raw/**/*.jp2
+data/raw/src/
+data/raw/**/*.aux.xml
