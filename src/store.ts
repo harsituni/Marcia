@@ -4,13 +4,14 @@ import { loadGrid } from './data/grid.ts';
 import type { GridData } from './data/grid.ts';
 import { createWorkerEngine } from './engine/client.ts';
 import type { EngineClient } from './engine/client.ts';
+import { clampConstraints } from './plan/constraints.ts';
 
 export type Mode = 'plan' | 'walk';
 
 /** Where the grid data comes from. M22 switches this to the real `data/`. */
 export const DATA_URL = `${import.meta.env?.BASE_URL ?? '/'}fixtures`;
 
-/** Starting constraints until the settings panel (M13) lets the crew edit them. */
+/** Starting constraints; the crew edits them in the settings panel. */
 export const DEFAULT_CONSTRAINTS: Constraints = { oxygenMin: 480, reservePct: 20, maxSlopeDeg: 25 };
 
 export type DataState =
@@ -45,6 +46,8 @@ interface AppState {
   showNotice: (message: string) => void;
 
   constraints: Constraints;
+  /** Updates some constraints (clamped to valid ranges) and reroutes shortly after. */
+  setConstraints: (patch: Partial<Constraints>) => void;
   route: RouteState;
   /** Asks the engine for a route from the habitat through the current stops. */
   planRoute: () => Promise<void>;
@@ -57,6 +60,10 @@ let engine: EngineClient | null = null;
 let engineGrid: GridData | null = null;
 let planSeq = 0;
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+let replanTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Wait after the last settings change before rerouting, so dragging a slider sends one request. */
+export const REPLAN_DELAY_MS = 200;
 
 /** True if `cell` is inside the grid and not blocked in `cost.bin`. */
 export function isWalkable(grid: GridData, cell: Cell): boolean {
@@ -93,7 +100,11 @@ export const useAppStore = create<AppState>()((set, get) => ({
     set({ data: { status: 'loading' } });
     try {
       const grid = await loadGrid(baseUrl);
-      set({ data: { status: 'ready', grid }, stops: grid.stops });
+      set({
+        data: { status: 'ready', grid },
+        stops: grid.stops,
+        constraints: clampConstraints(get().constraints, grid.meta.maxSlopeDeg),
+      });
     } catch (err) {
       set({ data: { status: 'error', message: errorMessage(err) } });
       return;
@@ -129,6 +140,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   constraints: DEFAULT_CONSTRAINTS,
+  setConstraints: (patch) => {
+    const data = get().data;
+    const gridMax = data.status === 'ready' ? data.grid.meta.maxSlopeDeg : DEFAULT_CONSTRAINTS.maxSlopeDeg;
+    set({ constraints: clampConstraints({ ...get().constraints, ...patch }, gridMax) });
+    clearTimeout(replanTimer);
+    replanTimer = setTimeout(() => void get().planRoute(), REPLAN_DELAY_MS);
+  },
   route: { status: 'idle' },
   planRoute: async () => {
     const data = get().data;
@@ -154,6 +172,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
 /** Drops the cached engine (tests, or after swapping the factory). */
 export function resetEngine(): void {
+  clearTimeout(replanTimer);
   engine?.terminate();
   engine = null;
   engineGrid = null;
