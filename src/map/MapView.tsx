@@ -121,6 +121,8 @@ function StopMarker({ stop, n, editable }: { stop: Stop; n: number; editable: bo
   const moveStop = useAppStore((s) => s.moveStop);
   const selectStop = useAppStore((s) => s.selectStop);
   const selected = useAppStore((s) => s.selectedStopId === stop.id);
+  // Dropped by a replan: stays on the map, greyed out.
+  const dropped = useAppStore((s) => s.replanned?.droppedIds.includes(stop.id) ?? false);
   const showNotice = useAppStore((s) => s.showNotice);
 
   const handlers = useMemo<LeafletEventHandlerFnMap>(
@@ -144,7 +146,7 @@ function StopMarker({ stop, n, editable }: { stop: Stop; n: number; editable: bo
   return (
     <Marker
       position={cellToLatLng(stop.cell)}
-      icon={stopIcon(n, selected)}
+      icon={stopIcon(n, selected, dropped)}
       title={`${n}. ${stop.name}`}
       draggable={editable}
       autoPan

@@ -76,8 +76,10 @@ export interface HudState {
   oxygen: { leftMin: number; supplyMin: number; reserveMin: number; fraction: number; status: Status };
   /**
    * Spare oxygen if the crew turned for home now: what's left, minus the
-   * reserve, minus the walk home by the shorter of retracing the route or
-   * finishing it. An estimate until replan-from-here (M23) gives a real path.
+   * reserve, minus the walk home along the current route. On a planned route
+   * that's the shorter of retracing it or finishing it; on a replanned route
+   * (which starts where the crew was, not at the habitat) it's finishing it.
+   * Pressing Replan swaps in the direct path home through the stops that still fit.
    */
   returnMargin: { marginMin: number; homeMin: number; fraction: number; status: Status };
 }
@@ -86,7 +88,8 @@ export function deriveHud(input: {
   route: Pick<RouteResult, 'path' | 'legs'>;
   stops: Stop[];
   constraints: Constraints;
-  meta: Pick<GridMeta, 'cellSizeM'>;
+  /** `habitat` matters on replanned routes, whose path starts at the crew, not the habitat. */
+  meta: Pick<GridMeta, 'cellSizeM'> & { habitat?: Cell };
   walk: WalkState;
 }): HudState {
   const { route, stops, constraints, meta, walk } = input;
@@ -114,13 +117,16 @@ export function deriveHud(input: {
     next = leg.toId !== START_ID && stopIdx >= 0 ? { kind: 'stop', stop: stops[stopIdx]!, n: stopIdx + 1, ...common } : { kind: 'home', ...common };
   }
 
-  const home = path[0]!;
+  const home = meta.habitat ?? path[0]!;
   const atHome = Math.hypot(position.x - home.x, position.y - home.y) < 0.5;
+  const startsAtHome = Math.hypot(path[0]!.x - home.x, path[0]!.y - home.y) < 0.5;
 
   const supplyMin = constraints.oxygenMin;
   const reserveMin = (supplyMin * constraints.reservePct) / 100;
   const leftMin = Math.max(0, walk.oxygenLeftMin);
-  const homeMin = (Math.min(here, total - here) / WALK_SPEED_M_PER_MIN) * OXYGEN_MIN_PER_MIN;
+  // Retracing only leads home when the route started there.
+  const homeM = startsAtHome ? Math.min(here, total - here) : total - here;
+  const homeMin = (homeM / WALK_SPEED_M_PER_MIN) * OXYGEN_MIN_PER_MIN;
   const marginMin = leftMin - reserveMin - homeMin;
   const usable = Math.max(1, supplyMin - reserveMin);
 

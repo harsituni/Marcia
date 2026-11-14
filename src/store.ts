@@ -1,11 +1,14 @@
 import { create } from 'zustand';
-import type { Cell, Constraints, RingResult, RouteResult, Stop } from './contracts.ts';
+import { START_ID } from './contracts.ts';
+import type { Alert, Cell, Constraints, RingResult, RouteResult, Stop } from './contracts.ts';
 import { loadGrid } from './data/grid.ts';
 import type { GridData } from './data/grid.ts';
+import { checkAlerts } from './engine/alerts.ts';
 import { createWorkerEngine } from './engine/client.ts';
 import type { EngineClient } from './engine/client.ts';
 import { usableOxygenMin } from './engine/model.ts';
 import { clampConstraints } from './plan/constraints.ts';
+import { positionAt } from './walk/hud.ts';
 import type { WalkState } from './walk/hud.ts';
 import { IDLE_REPLAY, RING_STEP_MIN, advance, walkAt } from './walk/replay.ts';
 import type { Replay } from './walk/replay.ts';
@@ -25,6 +28,16 @@ export type DataState =
   | { status: 'error'; message: string };
 
 export type LayerId = 'difficulty' | 'sand' | 'ring';
+
+/** Set once the crew has replanned mid-walk; `route` is then the replanned one. */
+export interface Replanned {
+  /** Stops dropped by this and any earlier replan, in planned order. */
+  droppedIds: string[];
+  /** Oxygen in the tank where the replanned route starts. */
+  startOxygenMin: number;
+  /** EVA minutes walked before the replanned route starts. */
+  offsetMin: number;
+}
 
 export type RouteState =
   | { status: 'idle' }
@@ -89,6 +102,18 @@ interface AppState {
   /** Advances the replay by `dtRealSec` of real time; called once per frame. */
   tickWalk: (dtRealSec: number) => void;
 
+  /** Walk-mode alerts for where the crew is now (`checkAlerts`), critical first. */
+  alerts: Alert[];
+  /** Non-null after a mid-walk replan. Planning again from the habitat clears it. */
+  replanned: Replanned | null;
+  /** True while a replan request is with the worker; the replay clock holds. */
+  replanning: boolean;
+  /**
+   * Replans from the crew's position through the stops still ahead, with the
+   * oxygen left. Swaps the new route in and records which stops were dropped.
+   */
+  replanWalk: () => Promise<void>;
+
   /** Engine factory; tests swap in a fake worker. */
   makeEngine: () => EngineClient;
 }
@@ -100,6 +125,7 @@ let ringSeq = 0;
 /** Oxygen value the last ring was requested for, and whether one is in flight. */
 let ringOxygen: number | null = null;
 let ringBusy = false;
+let replanSeq = 0;
 
 /** Returns the engine, initialised with `grid` (once per grid). */
 function engineFor(grid: GridData, make: () => EngineClient): EngineClient {
@@ -148,6 +174,12 @@ export const useAppStore = create<AppState>()((set, get) => ({
     // Leaving Walk pauses the replay; it resumes from the same spot.
     const replay = get().replay;
     set({ mode, replay: replay.status === 'playing' ? { ...replay, status: 'paused' } : replay });
+    // Plan mode always shows the plan from the habitat, so a replanned walk ends here.
+    if (mode === 'plan' && get().replanned) {
+      void get().planRoute();
+      return;
+    }
+    refreshAlerts();
     // The ring means "now" in Walk and "as planned" in Plan.
     if (mode === 'walk' || get().layers.ring) void get().planRing();
   },
@@ -222,7 +254,11 @@ export const useAppStore = create<AppState>()((set, get) => ({
     try {
       const result = await engineFor(grid, get().makeEngine).route({ start: grid.meta.habitat, stops: get().stops, constraints: get().constraints });
       // A new route starts a new walk: the old position indexed the old path.
-      if (seq === planSeq) set({ route: { status: 'ready', result }, walk: null, replay: { ...IDLE_REPLAY, speed: get().replay.speed } });
+      if (seq === planSeq) {
+        replanSeq++; // a replan still in flight is for the old route
+        set({ route: { status: 'ready', result }, walk: null, replay: { ...IDLE_REPLAY, speed: get().replay.speed }, replanned: null, replanning: false });
+        refreshAlerts();
+      }
     } catch (err) {
       if (seq === planSeq) set({ route: { status: 'error', message: errorMessage(err) } });
     }
@@ -273,7 +309,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
     if (get().replay.status === 'playing') set({ replay: { ...get().replay, status: 'paused' } });
   },
   resetWalk: () => {
+    // After a replan the planned route is gone; plan it again from the habitat.
+    if (get().replanned) {
+      void get().planRoute();
+      return;
+    }
     set({ walk: null, replay: { ...IDLE_REPLAY, speed: get().replay.speed } });
+    refreshAlerts();
     if (get().mode === 'walk') void get().planRing();
   },
   seekWalk: (fraction) => {
@@ -288,8 +330,56 @@ export const useAppStore = create<AppState>()((set, get) => ({
   tickWalk: (dtRealSec) => {
     const route = get().route;
     const replay = get().replay;
-    if (route.status !== 'ready' || replay.status !== 'playing') return;
+    if (route.status !== 'ready' || replay.status !== 'playing' || get().replanning) return;
     moveWalk(advance(replay, dtRealSec, route.result.timeMin));
+  },
+
+  alerts: [],
+  replanned: null,
+  replanning: false,
+  replanWalk: async () => {
+    const { data, route } = get();
+    if (data.status !== 'ready' || route.status !== 'ready' || get().replanning) return;
+    const { grid } = data;
+    const current = route.result;
+    const walk = get().walk ?? { pathIdx: 0, oxygenLeftMin: startOxygen(get()) };
+    const p = positionAt(current.path, walk.pathIdx);
+    const from = { x: Math.round(p.x), y: Math.round(p.y) };
+    // Stops still ahead on the current route, in order.
+    const aheadIds = current.legs.filter((l) => l.endIdx > walk.pathIdx && l.toId !== START_ID).map((l) => l.toId);
+    const ahead = aheadIds.flatMap((id) => get().stops.filter((s) => s.id === id));
+
+    const seq = ++replanSeq;
+    set({ replanning: true });
+    try {
+      const result = await engineFor(grid, get().makeEngine).replan(from, ahead, get().constraints, walk.oxygenLeftMin);
+      if (seq !== replanSeq) return;
+      if (result.path.length < 2) {
+        const atHome = from.x === grid.meta.habitat.x && from.y === grid.meta.habitat.y;
+        get().showNotice(atHome ? 'Already at the habitat: nothing to replan.' : "Can't find a walkable way home from here.");
+        return;
+      }
+      const before = get().replanned;
+      const dropped = new Set([...(before?.droppedIds ?? []), ...result.outOfRangeIds]);
+      const replay = get().replay;
+      set({
+        route: { status: 'ready', result },
+        walk: { pathIdx: 0, oxygenLeftMin: walk.oxygenLeftMin },
+        replanned: {
+          droppedIds: get().stops.filter((s) => dropped.has(s.id)).map((s) => s.id),
+          startOxygenMin: walk.oxygenLeftMin,
+          offsetMin: (before?.offsetMin ?? 0) + replay.elapsedMin,
+        },
+        // Carry on from the start of the new route; a finished or unstarted walk waits for Play.
+        replay: { ...replay, elapsedMin: 0, status: replay.status === 'playing' ? 'playing' : 'paused' },
+      });
+      refreshAlerts();
+      void get().planRing();
+    } catch (err) {
+      if (seq === replanSeq) get().showNotice(`Couldn't replan: ${errorMessage(err)}`);
+    } finally {
+      if (seq === replanSeq) set({ replanning: false });
+    }
   },
 
   makeEngine: createWorkerEngine,
@@ -302,11 +392,32 @@ function ringOxygenNow(s: AppState): number {
   return Math.max(0, s.walk.oxygenLeftMin - (oxygenMin * reservePct) / 100);
 }
 
-/** Applies a replay clock: moves the crew, and refreshes the ring as the oxygen drops. */
+/** Oxygen in the tank at the start of the route being walked. */
+function startOxygen(s: AppState): number {
+  return s.replanned?.startOxygenMin ?? s.constraints.oxygenMin;
+}
+
+/** Runs `checkAlerts` for where the crew is now (Walk mode only). */
+function refreshAlerts(): void {
+  const s = useAppStore.getState();
+  if (s.mode !== 'walk' || s.route.status !== 'ready' || s.data.status !== 'ready' || s.route.result.path.length === 0) {
+    if (s.alerts.length > 0) useAppStore.setState({ alerts: [] });
+    return;
+  }
+  const route = s.route.result;
+  const walk = s.walk ?? { pathIdx: 0, oxygenLeftMin: startOxygen(s) };
+  const alerts = checkAlerts(positionAt(route.path, walk.pathIdx), route, s.constraints, walk.oxygenLeftMin, s.data.grid);
+  // Keep the same array while nothing changed, so the banner doesn't re-render every frame.
+  const same = alerts.length === s.alerts.length && alerts.every((a, i) => a.kind === s.alerts[i]!.kind && a.severity === s.alerts[i]!.severity && a.message === s.alerts[i]!.message);
+  if (!same) useAppStore.setState({ alerts });
+}
+
+/** Applies a replay clock: moves the crew, checks alerts, and refreshes the ring as the oxygen drops. */
 function moveWalk(replay: Replay, forceRing = false): void {
   const s = useAppStore.getState();
   if (s.route.status !== 'ready' || s.data.status !== 'ready') return;
-  useAppStore.setState({ replay, walk: walkAt(s.route.result, s.constraints, s.data.grid.meta, replay.elapsedMin) });
+  useAppStore.setState({ replay, walk: walkAt(s.route.result, { oxygenMin: startOxygen(s) }, s.data.grid.meta, replay.elapsedMin) });
+  refreshAlerts();
   if (useAppStore.getState().mode !== 'walk') return;
   const oxygen = ringOxygenNow(useAppStore.getState());
   const stale = ringOxygen === null || Math.abs(oxygen - ringOxygen) >= RING_STEP_MIN;
@@ -318,6 +429,7 @@ function moveWalk(replay: Replay, forceRing = false): void {
 export function resetEngine(): void {
   ringOxygen = null;
   ringBusy = false;
+  replanSeq++;
   clearTimeout(replanTimer);
   engine?.terminate();
   engine = null;

@@ -8,6 +8,7 @@ import { formatDistance, formatDuration } from '../plan/profile.ts';
 import { useAppStore } from '../store.ts';
 import { compassTicks, deriveHud, formatHeading, relativeBearing } from './hud.ts';
 import type { HudState, NextTarget, Status } from './hud.ts';
+import { AlertStack } from './AlertStack.tsx';
 import { ReplayBar } from './ReplayBar.tsx';
 
 /** Okabe-Ito colours (as in the M17 overlays); always paired with a word and a shape. */
@@ -61,6 +62,10 @@ export function Hud() {
         <OxygenGauge hud={hud} />
         <Compass hud={hud} />
         <MarginGauge hud={hud} />
+        {/* Its own row; on wide screens pulled up under the compass, between the gauges. */}
+        <div className="w-full sm:-mt-[4.5rem] sm:px-40">
+          <AlertStack />
+        </div>
       </div>
       {/* Phone: replay bar on its own row. Wider: along the bottom edge, between the two panels. */}
       <div className="relative flex flex-wrap items-end justify-between gap-2">
@@ -244,6 +249,7 @@ function MiniMap({ grid, route, stops, hud }: { grid: GridData; route: RouteResu
   const nextId = hud.next.kind === 'stop' ? hud.next.stop.id : null;
   const hab = grid.meta.habitat;
   const ring = useAppStore((s) => s.ring);
+  const droppedIds = useAppStore((s) => s.replanned?.droppedIds);
   const ringPoints = useMemo(() => (ring && ring.polygon.length > 2 ? ring.polygon.map((c) => `${c.x + 0.5},${c.y + 0.5}`).join(' ') : null), [ring]);
 
   return (
@@ -258,12 +264,12 @@ function MiniMap({ grid, route, stops, hud }: { grid: GridData; route: RouteResu
         <polyline points={out} fill="none" stroke="#fff" strokeWidth={1.2 * u} strokeLinejoin="round" />
         <rect x={hab.x + 0.5 - 2.5 * u} y={hab.y + 0.5 - 2.5 * u} width={5 * u} height={5 * u} rx={u} fill="#f5ede8" stroke="#1b1210" strokeWidth={0.6 * u} />
         {stops.map((s, i) => (
-          <g key={s.id}>
+          <g key={s.id} opacity={droppedIds?.includes(s.id) ? 0.4 : 1}>
             <circle
               cx={s.cell.x + 0.5}
               cy={s.cell.y + 0.5}
               r={(s.id === nextId ? 4.2 : 3.2) * u}
-              fill="#c1440e"
+              fill={droppedIds?.includes(s.id) ? '#6b6460' : '#c1440e'}
               stroke="#fff"
               strokeWidth={(s.id === nextId ? 1.2 : 0.6) * u}
             />
