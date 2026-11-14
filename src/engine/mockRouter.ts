@@ -1,5 +1,10 @@
+/**
+ * Test-only stand-ins for the engine (straight-line route, circular ring).
+ * The app uses the real worker (A* + Dijkstra ring); nothing in `src/` imports this.
+ */
 import { START_ID } from '../contracts.ts';
 import type { Cell, GridMeta, RingResult, RouteLeg, RouteRequest, RouteResult } from '../contracts.ts';
+import { pathLengthM } from './path.ts';
 import { ENERGY_KJ_PER_MIN, OXYGEN_MIN_PER_MIN, WALK_SPEED_M_PER_MIN, usableOxygenMin } from './model.ts';
 
 /** Cells on the straight line from `a` to `b`, both ends included (Bresenham). */
@@ -27,17 +32,6 @@ export function lineCells(a: Cell, b: Cell): Cell[] {
     out.push({ x, y });
   }
   return out;
-}
-
-/** Ground length of a cell path, counting diagonal steps as √2 cells. */
-export function pathLengthM(path: Cell[], cellSizeM: number): number {
-  let cells = 0;
-  for (let i = 1; i < path.length; i++) {
-    const p = path[i - 1]!;
-    const q = path[i]!;
-    cells += Math.hypot(q.x - p.x, q.y - p.y);
-  }
-  return cells * cellSizeM;
 }
 
 function minutesFor(distanceM: number): number {
