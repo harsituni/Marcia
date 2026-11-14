@@ -183,8 +183,11 @@ function minutesFor(distanceM: number): number {
  * reached also has a way home. If nothing is reachable, `path` is just
  * `[start]` with no legs. Never throws for unreachable cells.
  *
- * Time, energy and oxygen use the flat-ground walking model from `model.ts`
- * (as the mock does); M14 may make them cost-aware.
+ * Stats are ESTIMATES (`STATS_ARE_ESTIMATES` in `model.ts`): `distanceM` is
+ * the path length (diagonal steps √2 cells); `timeMin`, `energyKJ` and
+ * `oxygenUsedMin` scale from it with the flat-ground constants in `model.ts`.
+ * Cell cost only steers which path is taken. With no reachable stop, all
+ * four are 0.
  */
 export function astarRoute(engine: AStar, req: RouteRequest, meta: GridMeta): RouteResult {
   const { start, stops, constraints } = req;
