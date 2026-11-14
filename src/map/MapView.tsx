@@ -9,6 +9,7 @@ import { cellToLatLng, gridBounds, latLngToCell } from './coords.ts';
 import { habitatIcon, stopIcon } from './pins.ts';
 import { RouteLayer, RouteLegend } from './RouteLayer.tsx';
 import { LayerToggles, OverlayLayers } from './OverlayLayers.tsx';
+import { WalkMarker } from './WalkMarker.tsx';
 
 /**
  * Grid-space map: CRS.Simple, so one Leaflet unit = one grid cell.
@@ -18,7 +19,8 @@ export function MapView() {
   const data = useAppStore((s) => s.data);
   const route = useAppStore((s) => s.route);
   const notice = useAppStore((s) => s.notice);
-  const editing = useAppStore((s) => s.mode === 'plan') && data.status === 'ready';
+  const mode = useAppStore((s) => s.mode);
+  const editing = mode === 'plan' && data.status === 'ready';
 
   return (
     <>
@@ -36,6 +38,7 @@ export function MapView() {
         {route.status === 'ready' && <RouteLayer route={route.result} />}
         {data.status === 'ready' && <StopMarkers editable={editing} />}
         {editing && <AddStopOnClick />}
+        {mode === 'walk' && route.status === 'ready' && <WalkMarker route={route.result} />}
         <ResizeWithContainer bounds={data.status === 'ready' ? gridBounds(data.grid.meta) : null} />
       </MapContainer>
       {editing && (
@@ -48,8 +51,9 @@ export function MapView() {
           {notice}
         </p>
       )}
-      {route.status === 'ready' && <RouteLegend />}
-      {data.status === 'ready' && <LayerToggles />}
+      {/* The HUD takes the corners in Walk mode; layers stay as set in Plan. */}
+      {mode === 'plan' && route.status === 'ready' && <RouteLegend />}
+      {mode === 'plan' && data.status === 'ready' && <LayerToggles />}
       {data.status !== 'ready' && (
         <div className="pointer-events-none absolute inset-0 z-[1000] flex items-center justify-center">
           <p className="rounded-md bg-black/60 px-4 py-2 text-sm">

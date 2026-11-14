@@ -6,6 +6,7 @@ import { createWorkerEngine } from './engine/client.ts';
 import type { EngineClient } from './engine/client.ts';
 import { usableOxygenMin } from './engine/model.ts';
 import { clampConstraints } from './plan/constraints.ts';
+import type { WalkState } from './walk/hud.ts';
 
 export type Mode = 'plan' | 'walk';
 
@@ -65,6 +66,14 @@ interface AppState {
   /** Turn-back ring for the usable oxygen; fetched while the ring layer is on. */
   ring: RingResult | null;
   planRing: () => Promise<void>;
+
+  /**
+   * Progress along the route in Walk mode. Null until a walk starts; the HUD
+   * then shows the crew at the habitat with a full supply. The replay (M25)
+   * drives this.
+   */
+  walk: WalkState | null;
+  setWalk: (walk: WalkState | null) => void;
 
   /** Engine factory; tests swap in a fake worker. */
   makeEngine: () => EngineClient;
@@ -218,6 +227,9 @@ export const useAppStore = create<AppState>()((set, get) => ({
       }
     }
   },
+
+  walk: null,
+  setWalk: (walk) => set({ walk }),
 
   makeEngine: createWorkerEngine,
 }));

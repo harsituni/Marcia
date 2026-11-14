@@ -1,0 +1,113 @@
+import { describe, expect, it } from 'vitest';
+import { START_ID } from '../src/contracts.ts';
+import type { RouteResult, Stop } from '../src/contracts.ts';
+import { bearingDeg, compassTicks, deriveHud, formatHeading, positionAt, relativeBearing } from '../src/walk/hud.ts';
+
+const stop = (id: string, x: number): Stop => ({ id, name: id.toUpperCase(), cell: { x, y: 0 }, goal: '', geologyUnit: '', minerals: [], photo: '', scienceValue: 1 });
+
+// East along row 0 to x=10, then back west to the start. 10 m cells, 50 m/min.
+const path = [...Array.from({ length: 11 }, (_, x) => ({ x, y: 0 })), ...Array.from({ length: 10 }, (_, i) => ({ x: 9 - i, y: 0 }))];
+const route: Pick<RouteResult, 'path' | 'legs'> = {
+  path,
+  legs: [
+    { fromId: START_ID, toId: 'a', startIdx: 0, endIdx: 4 },
+    { fromId: 'a', toId: 'b', startIdx: 4, endIdx: 10 },
+    { fromId: 'b', toId: START_ID, startIdx: 10, endIdx: 20 },
+  ],
+};
+const stops = [stop('a', 4), stop('b', 10)];
+const constraints = { oxygenMin: 480, reservePct: 20, maxSlopeDeg: 25 };
+const hud = (pathIdx: number, oxygenLeftMin = 480) => deriveHud({ route, stops, constraints, meta: { cellSizeM: 10 }, walk: { pathIdx, oxygenLeftMin } });
+
+describe('bearings', () => {
+  it('0 is grid north (up), clockwise', () => {
+    const o = { x: 5, y: 5 };
+    expect(bearingDeg(o, { x: 5, y: 0 })).toBe(0);
+    expect(bearingDeg(o, { x: 9, y: 5 })).toBe(90);
+    expect(bearingDeg(o, { x: 5, y: 9 })).toBe(180);
+    expect(bearingDeg(o, { x: 0, y: 5 })).toBe(270);
+    expect(bearingDeg(o, { x: 8, y: 2 })).toBeCloseTo(45);
+  });
+
+  it('relativeBearing wraps to the short way round', () => {
+    expect(relativeBearing(10, 350)).toBe(20);
+    expect(relativeBearing(350, 10)).toBe(-20);
+    expect(relativeBearing(180, 0)).toBe(180);
+    expect(relativeBearing(90, 90)).toBe(0);
+  });
+
+  it('formats headings as three digits', () => {
+    expect(formatHeading(7.4)).toBe('007°');
+    expect(formatHeading(359.6)).toBe('000°');
+  });
+});
+
+describe('compassTicks', () => {
+  it('centres on the heading and labels the 45° points', () => {
+    const t = compassTicks(90, 120, 15);
+    expect(t[0]).toEqual({ deg: 30, offsetDeg: -60, label: null });
+    expect(t.at(-1)).toEqual({ deg: 150, offsetDeg: 60, label: null });
+    expect(t.filter((x) => x.label).map((x) => x.label)).toEqual(['NE', 'E', 'SE']);
+  });
+
+  it('wraps through north', () => {
+    const t = compassTicks(350, 120, 15);
+    const north = t.find((x) => x.label === 'N')!;
+    expect(north).toEqual({ deg: 0, offsetDeg: 10, label: 'N' });
+    expect(t.every((x) => x.deg >= 0 && x.deg < 360)).toBe(true);
+  });
+});
+
+describe('deriveHud', () => {
+  it('at the start: heading out, first stop next, full margin', () => {
+    const h = hud(0);
+    expect(h.position).toEqual({ x: 0, y: 0 });
+    expect(h.headingDeg).toBe(90);
+    expect(h.next).toMatchObject({ kind: 'stop', n: 1, distanceM: 40, etaMin: 0.8, bearingDeg: 90 });
+    expect(h.habitatBearingDeg).toBeNull();
+    expect(h.oxygen).toMatchObject({ leftMin: 480, reserveMin: 96, fraction: 1, status: 'ok' });
+    expect(h.returnMargin).toMatchObject({ marginMin: 384, homeMin: 0, fraction: 1, status: 'ok' });
+  });
+
+  it('standing on a stop, the next one is the target', () => {
+    expect(hud(4).next).toMatchObject({ kind: 'stop', n: 2, distanceM: 60 });
+  });
+
+  it('between cells: interpolated position, distance and way home', () => {
+    const h = hud(6.5);
+    expect(positionAt(path, 6.5)).toEqual({ x: 6.5, y: 0 });
+    expect(h.position).toEqual({ x: 6.5, y: 0 });
+    expect(h.next).toMatchObject({ kind: 'stop', n: 2, distanceM: 35 });
+    expect(h.habitatBearingDeg).toBe(270);
+    // Home by the shorter of retracing (65 m) or finishing (135 m).
+    expect(h.returnMargin.homeMin).toBeCloseTo(65 / 50);
+  });
+
+  it('after the last stop: heading home', () => {
+    const h = hud(12);
+    expect(h.headingDeg).toBe(270);
+    expect(h.next).toMatchObject({ kind: 'home', distanceM: 80, bearingDeg: 270 });
+    expect(h.returnMargin.homeMin).toBeCloseTo(80 / 50);
+  });
+
+  it('at the end: arrived, still pointing the way it came', () => {
+    const h = hud(20);
+    expect(h.next).toEqual({ kind: 'arrived' });
+    expect(h.headingDeg).toBe(270);
+    expect(h.habitatBearingDeg).toBeNull();
+  });
+
+  it('gauge statuses follow the reserve', () => {
+    expect(hud(10, 200).returnMargin.status).toBe('ok');
+    expect(hud(10, 120).returnMargin).toMatchObject({ status: 'caution' }); // 120 − 96 − 2 = 22 spare
+    expect(hud(10, 120).oxygen.status).toBe('caution');
+    expect(hud(10, 97).returnMargin.status).toBe('critical'); // 97 − 96 − 2 < 0
+    expect(hud(10, 96).oxygen.status).toBe('critical');
+    expect(hud(10, 97).returnMargin.fraction).toBe(0);
+  });
+
+  it('clamps an out-of-range path index', () => {
+    expect(hud(999).next).toEqual({ kind: 'arrived' });
+    expect(hud(-5).position).toEqual({ x: 0, y: 0 });
+  });
+});
