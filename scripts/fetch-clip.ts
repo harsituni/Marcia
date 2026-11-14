@@ -36,6 +36,11 @@ const DTM_BASE =
 const ORTHO_BASE =
   'https://hirise.lpl.arizona.edu/PDS/DTM/PSP/ORB_002300_002399/PSP_002387_1985_PSP_003798_1985/PSP_002387_1985_RED_A_01_ORTHO';
 const TI_URL = 'https://zenodo.org/records/4931348/files/Jezero_Thermal_Inertia_v1.tiff';
+// Stack et al. (2020) Mars 2020 photogeologic map shapefile (Springer ESM, Online Resource 3); used by compute-sand (M12).
+const GEOLOGY_URL =
+  'https://static-content.springer.com/esm/art%3A10.1007%2Fs11214-020-00739-x/MediaObjects/11214_2020_739_MOESM3_ESM.zip';
+/** Local path of the downloaded geology-map zip (read in place via GDAL's /vsizip/). */
+export const GEOLOGY_ZIP = join(SRC_DIR, basename(new URL(GEOLOGY_URL).pathname));
 
 const SKIP_TI = process.argv.includes('--skip-ti');
 const EXE = process.platform === 'win32' ? '.exe' : '';
@@ -364,6 +369,12 @@ async function main(): Promise<void> {
     } catch (err) {
       console.warn(`WARNING: optional thermal inertia download failed, skipping: ${errMsg(err)}`);
     }
+  }
+  // Geology map for the sand mask (M12). Not needed for the clip itself, so a failure only warns.
+  try {
+    await saveResumable(GEOLOGY_URL, GEOLOGY_ZIP);
+  } catch (err) {
+    console.warn(`WARNING: geology map download failed (needed by compute:sand): ${errMsg(err)}`);
   }
 
   // ---- coverage: the whole site box (edges densified) must lie inside each source's extent
