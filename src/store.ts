@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Constraints, RouteResult } from './contracts.ts';
+import type { Cell, Constraints, RouteResult, Stop } from './contracts.ts';
 import { loadGrid } from './data/grid.ts';
 import type { GridData } from './data/grid.ts';
 import { createWorkerEngine } from './engine/client.ts';
@@ -32,6 +32,18 @@ interface AppState {
   data: DataState;
   loadData: (baseUrl?: string) => Promise<void>;
 
+  /** Planned stops, in visiting order. Starts as `stops.json`. */
+  stops: Stop[];
+  /** Adds a stop at the end of the route. Returns false if the cell isn't walkable. */
+  addStop: (cell: Cell) => boolean;
+  /** Moves a stop. Returns false (and leaves it) if the cell isn't walkable. */
+  moveStop: (id: string, cell: Cell) => boolean;
+  removeStop: (id: string) => void;
+
+  /** Short message shown over the map, cleared after a few seconds. */
+  notice: string | null;
+  showNotice: (message: string) => void;
+
   constraints: Constraints;
   route: RouteState;
   /** Asks the engine for a route from the habitat through the current stops. */
@@ -44,6 +56,31 @@ interface AppState {
 let engine: EngineClient | null = null;
 let engineGrid: GridData | null = null;
 let planSeq = 0;
+let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** True if `cell` is inside the grid and not blocked in `cost.bin`. */
+export function isWalkable(grid: GridData, cell: Cell): boolean {
+  const { width, height } = grid.meta;
+  if (!Number.isInteger(cell.x) || !Number.isInteger(cell.y)) return false;
+  if (cell.x < 0 || cell.y < 0 || cell.x >= width || cell.y >= height) return false;
+  return Number.isFinite(grid.cost[cell.y * width + cell.x]!);
+}
+
+/** A crew-added stop; the science fields stay blank until someone fills them in. */
+function customStop(cell: Cell, existing: Stop[]): Stop {
+  let n = 1;
+  while (existing.some((s) => s.id === `custom-${n}`)) n++;
+  return {
+    id: `custom-${n}`,
+    name: `Custom stop ${n}`,
+    cell,
+    goal: '',
+    geologyUnit: 'Unknown',
+    minerals: [],
+    photo: '',
+    scienceValue: 1,
+  };
+}
 
 /** App-wide UI state. Plan/Walk features add their slices here. */
 export const useAppStore = create<AppState>()((set, get) => ({
@@ -55,12 +92,40 @@ export const useAppStore = create<AppState>()((set, get) => ({
     if (get().data.status === 'loading') return;
     set({ data: { status: 'loading' } });
     try {
-      set({ data: { status: 'ready', grid: await loadGrid(baseUrl) } });
+      const grid = await loadGrid(baseUrl);
+      set({ data: { status: 'ready', grid }, stops: grid.stops });
     } catch (err) {
       set({ data: { status: 'error', message: errorMessage(err) } });
       return;
     }
     await get().planRoute();
+  },
+
+  stops: [],
+  addStop: (cell) => {
+    const data = get().data;
+    if (data.status !== 'ready' || !isWalkable(data.grid, cell)) return false;
+    set({ stops: [...get().stops, customStop(cell, get().stops)] });
+    void get().planRoute();
+    return true;
+  },
+  moveStop: (id, cell) => {
+    const data = get().data;
+    if (data.status !== 'ready' || !isWalkable(data.grid, cell)) return false;
+    set({ stops: get().stops.map((s) => (s.id === id ? { ...s, cell } : s)) });
+    void get().planRoute();
+    return true;
+  },
+  removeStop: (id) => {
+    set({ stops: get().stops.filter((s) => s.id !== id) });
+    void get().planRoute();
+  },
+
+  notice: null,
+  showNotice: (message) => {
+    clearTimeout(noticeTimer);
+    set({ notice: message });
+    noticeTimer = setTimeout(() => set({ notice: null }), 3000);
   },
 
   constraints: DEFAULT_CONSTRAINTS,
@@ -77,7 +142,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         engine.init(grid.meta, grid.cost);
         engineGrid = grid;
       }
-      const result = await engine.route({ start: grid.meta.habitat, stops: grid.stops, constraints: get().constraints });
+      const result = await engine.route({ start: grid.meta.habitat, stops: get().stops, constraints: get().constraints });
       if (seq === planSeq) set({ route: { status: 'ready', result } });
     } catch (err) {
       if (seq === planSeq) set({ route: { status: 'error', message: errorMessage(err) } });
