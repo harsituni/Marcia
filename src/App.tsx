@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { MapView } from './map/MapView.tsx';
+import { RoutePanel } from './plan/RoutePanel.tsx';
 import { SettingsPanel } from './plan/SettingsPanel.tsx';
 import { useAppStore } from './store.ts';
 import type { Mode } from './store.ts';
@@ -40,9 +41,12 @@ export function App() {
           ))}
         </div>
       </header>
-      <main className="relative flex-1">
-        <MapView />
-        {mode === 'plan' && <SettingsPanel />}
+      <main className="flex min-h-0 flex-1 flex-col">
+        <div className="relative min-h-0 flex-1">
+          <MapView />
+          {mode === 'plan' && <SettingsPanel />}
+        </div>
+        {mode === 'plan' && <RoutePanel />}
       </main>
     </div>
   );
