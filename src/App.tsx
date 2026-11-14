@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { MapView } from './map/MapView.tsx';
 import { RoutePanel } from './plan/RoutePanel.tsx';
 import { SettingsPanel } from './plan/SettingsPanel.tsx';
+import { StopCard } from './plan/StopCard.tsx';
 import { useAppStore } from './store.ts';
 import type { Mode } from './store.ts';
 
@@ -45,6 +46,7 @@ export function App() {
         <div className="relative min-h-0 flex-1">
           <MapView />
           {mode === 'plan' && <SettingsPanel />}
+          <StopCard />
         </div>
         {mode === 'plan' && <RoutePanel />}
       </main>
