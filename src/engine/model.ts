@@ -71,3 +71,27 @@ export const SOFT_COST_MULT = 1.3;
 export function usableOxygenMin(oxygenMin: number, reservePct: number): number {
   return oxygenMin * (1 - reservePct / 100);
 }
+
+// --- Walk-mode alert thresholds (M26, `alerts.ts`) --------------------------
+
+/**
+ * JUDGEMENT CALL, no source. Metres from the planned path before an off-route
+ * warning. 15 m is three 5 m cells: beyond a normal step around a rock, and
+ * beyond the half-cell a between-cells position can sit from the line.
+ */
+export const OFF_ROUTE_WARN_M = 15;
+
+/** JUDGEMENT CALL, no source. Metres from the planned path before the off-route alert turns critical. */
+export const OFF_ROUTE_CRITICAL_M = 40;
+
+/**
+ * JUDGEMENT CALL, no source. Warn when the ground is within this many degrees
+ * of the crew's slope limit (`Constraints.maxSlopeDeg`); over the limit is critical.
+ */
+export const SLOPE_WARN_MARGIN_DEG = 3;
+
+/**
+ * JUDGEMENT CALL, no source. Warn when finishing the route would leave fewer
+ * than this many oxygen-minutes above the reserve; below zero is critical.
+ */
+export const OXYGEN_MARGIN_WARN_MIN = 15;
