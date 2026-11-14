@@ -4,31 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { START_ID } from '../src/contracts.ts';
 import type { GridMeta, Stop } from '../src/contracts.ts';
 import { EngineClient } from '../src/engine/client.ts';
-import type { WorkerLike } from '../src/engine/client.ts';
 import { mockRoute } from '../src/engine/mockRouter.ts';
-import { handleMessage } from '../src/engine/worker.ts';
-import type { WorkerIn, WorkerOut } from '../src/engine/worker.ts';
+import { FakeWorker } from './fakeWorker.ts';
 import { splitOutAndHome } from '../src/map/route.ts';
 import { DEFAULT_CONSTRAINTS, resetEngine, useAppStore } from '../src/store.ts';
 
 const FIX = join(import.meta.dirname, '..', 'fixtures');
 const meta = JSON.parse(readFileSync(join(FIX, 'meta.json'), 'utf8')) as GridMeta;
 const stops = JSON.parse(readFileSync(join(FIX, 'stops.json'), 'utf8')) as Stop[];
-
-/** Runs the real worker handler on a microtask, like a worker thread would. */
-class FakeWorker implements WorkerLike {
-  onmessage: ((e: MessageEvent<WorkerOut>) => void) | null = null;
-  sent: WorkerIn[] = [];
-  private state: Parameters<typeof handleMessage>[0] = null;
-  postMessage(msg: WorkerIn) {
-    this.sent.push(msg);
-    queueMicrotask(() => {
-      const res = handleMessage(this.state, msg);
-      this.state = res.state;
-      if (res.out) this.onmessage?.({ data: res.out } as MessageEvent<WorkerOut>);
-    });
-  }
-}
 
 describe('splitOutAndHome', () => {
   const route = mockRoute({ start: meta.habitat, stops, constraints: DEFAULT_CONSTRAINTS }, meta);
