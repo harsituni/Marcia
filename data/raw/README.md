@@ -90,6 +90,31 @@ bedforms poorly, and why the geologic map is the primary sand source.
 - Emran, A., Marzen, L. J., King, D. T., Jr., & Chevrier, V. F. (2021). Thermophysical and compositional analyses of dunes at Hargraves Crater, Mars. The Planetary Science Journal, 2(6), 218. https://doi.org/10.3847/PSJ/ac25ee
 - Ahern, A. A., Rogers, A. D., Edwards, C. S., & Piqueux, S. (2021). Thermophysical properties and surface heterogeneity of landing sites on Mars from overlapping THEMIS observations. JGR Planets, 126(6), e2020JE006713. https://doi.org/10.1029/2020JE006713
 
+## Exported grid (M16)
+
+```sh
+npm run export:grid   # after fetch:clip, compute:slope, compute:sand
+```
+
+`scripts/export-grid.ts` writes the real grid to `public/data/` in the M01
+formats (`src/contracts.ts`). Those files are committed, because the app
+loads them. The layout is row-major, with index = y·width + x and y = 0 as
+the north row:
+
+| File | Contents |
+| --- | --- |
+| `meta.json` | `GridMeta`: 600 × 600, `cellSizeM` 5, `maxSlopeDeg`, and the `habitat` cell converted from `site.json` |
+| `cost.bin` | Float32 little-endian; `Infinity` means blocked |
+| `elevation.bin` | Float32 little-endian, metres (from `elev_5m.tif`) |
+| `sand.bin` | Uint8, 1 = mapped sand (from `sand_5m.tif`) |
+
+Cost uses the same formula as the fixture grid, plus a soft-ground term
+(`buildCost`):
+`slope > MAX_SLOPE_DEG ? Infinity : (1 + 3·(slope/MAX_SLOPE_DEG)²) × (sand ? SAND_COST_MULT : 1) × (soft && !sand ? SOFT_COST_MULT : 1)`.
+The constants are in `src/engine/model.ts` (25°, ×2, ×1.3) and are all
+estimates. `public/data/stops.json` isn't written by this script. It only
+reports where each stop lands.
+
 ## Sources
 
 Downloads go to `data/raw/src/` (git-ignored). Files whose size already matches

@@ -48,6 +48,25 @@ export const OXYGEN_MIN_PER_MIN = 1;
  */
 export const SOFT_GROUND_TI_MAX = 200;
 
+/**
+ * ESTIMATE, no source yet. Slope (degrees) above which a cell is blocked in
+ * `cost.bin` (written to `GridMeta.maxSlopeDeg`). Matches the fixture grid.
+ */
+export const MAX_SLOPE_DEG = 25;
+
+/**
+ * ESTIMATE, no source yet. Cost multiplier on mapped sand (aeolian bedforms,
+ * `sand.bin`): walking on loose sand assumed twice as hard as on rock.
+ * Matches the fixture grid.
+ */
+export const SAND_COST_MULT = 2;
+
+/**
+ * ESTIMATE, no source yet. Cost multiplier on soft ground (THEMIS TI below
+ * `SOFT_GROUND_TI_MAX`) that isn't already mapped sand.
+ */
+export const SOFT_COST_MULT = 1.3;
+
 /** Oxygen budget usable before dipping into the reserve. */
 export function usableOxygenMin(oxygenMin: number, reservePct: number): number {
   return oxygenMin * (1 - reservePct / 100);
