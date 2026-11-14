@@ -13,6 +13,9 @@ git-ignored. Don't commit rasters.
 | `ortho_5m.tif`  | HiRISE RED ortho image                    | average    | 0                 |
 | `ti_5m.tif`     | Thermal inertia (optional), Float32       | bilinear   | -9999             |
 | `slope_5m.tif`  | Slope (degrees), Float32 (M09)            | Horn 3×3   | none (checked)    |
+| `sand_5m.tif`   | Sand: mapped aeolian bedforms, Byte (M12) | rasterized | none (0 = not)    |
+| `soft_5m.tif`   | Soft ground: TI < 200, Byte (M12)         | from TI    | none (0 = not)    |
+| `smooth_5m.tif` | Smooth / Us units, Byte (M12, unused)     | rasterized | none (0 = not)    |
 
 All outputs share one grid: 600 × 600 cells at 5 m, covering the
 site.json bounds exactly. They are GeoTIFFs with DEFLATE compression and tiling.
@@ -37,6 +40,56 @@ maths in TypeScript, including GDAL's edge handling, for tests and for later
 steps that need slope without GDAL (M16, `cost.bin`). It matches gdaldem to
 within 0.003° on every cell.
 
+## Sand and soft ground (M12)
+
+```sh
+npm run compute:sand   # after npm run fetch:clip
+```
+
+`compute:sand` writes three Byte masks (1 = yes, 0 = no). It fails unless each
+one has the same size, geotransform and CRS as `elev_5m.tif`.
+
+1. **`sand_5m.tif`: the primary sand mask.** It's the aeolian-bedform units
+   from the Stack et al. (2020) photogeologic map, rasterized onto the
+   elevation grid. The map units are Ab-l and Ab-s (§4.1). In the shapefile's
+   `SurfUName` field they're spelled `Aeolian bedforms, large` and
+   `Aeolian bedforms, small`. GDAL reprojects the shapefile (eqc, `lat_ts=0`)
+   onto our grid. A cell counts when its centre is inside a polygon.
+   `fetch:clip` downloads the map (Springer ESM Online Resource 3, 3.5 MB)
+   into `src/`, and GDAL reads it in place via `/vsizip/`.
+2. **`soft_5m.tif`: the secondary soft-ground mask.** It's THEMIS thermal
+   inertia (`ti_5m.tif`) below `SOFT_GROUND_TI_MAX = 200` J m⁻² K⁻¹ s⁻½ in
+   `src/engine/model.ts`. A cell exactly at 200 isn't soft, and nodata is
+   never soft. It's an **estimate**: no published cut-off for loose sand
+   exists (see the comment on the constant). It's kept separate from
+   `sand_5m.tif`, and M16 decides the cost weights.
+3. **`smooth_5m.tif`** (optional, not used yet) holds the smooth / Us mantle
+   units: `Undifferentiated smooth`, `Minor Cover Us` and `Moderate Cover Us`.
+
+These numbers for the M04 box were **computed by us** (`npm run compute:sand`).
+They aren't published values:
+
+| | Share of cells |
+| --- | --- |
+| Map polygons cover | 99.996% (15 cells fall outside every polygon and count as not sand) |
+| Sand (mapped bedforms) | 26.65% |
+| Soft ground (TI < 200) | 15.78% |
+| Mapped bedforms that are also TI < 200 | 27.34% |
+| TI < 200 cells that are mapped bedforms | 46.17% |
+
+The THEMIS map has 100 m pixels, which is why TI on its own matches the mapped
+bedforms poorly, and why the geologic map is the primary sand source.
+
+### Sand mask sources
+
+- Edwards, C. S., & Buz, J. (2021). THEMIS-derived thermal inertia of Jezero Crater, Mars (v1) [Data set]. Zenodo. https://doi.org/10.5281/zenodo.4931348
+- Stack, K. M., Williams, N. R., Calef, F., III, Sun, V. Z., et al. (2020). Photogeologic map of the Perseverance rover field site in Jezero crater constructed by the Mars 2020 Science Team. Space Science Reviews, 216(8), 127. https://doi.org/10.1007/s11214-020-00739-x (units Ab-l, Ab-s: §4.1; shapefile: Online Resource 3)
+- Sun, V. Z., & Stack, K. M. (2020). Geologic map of Jezero crater and the Nili Planum region, Mars (SIM 3464). USGS. https://doi.org/10.3133/sim3464
+- Fergason, R. L., Christensen, P. R., Bell, J. F., Golombek, M. P., Herkenhoff, K. E., & Kieffer, H. H. (2006b). Physical properties of the Mars Exploration Rover landing sites as inferred from Mini-TES-derived thermal inertia. JGR Planets, 111(E2). https://doi.org/10.1029/2005JE002583
+- Fergason, R. L., Christensen, P. R., & Kieffer, H. H. (2006a). High-resolution thermal inertia derived from THEMIS: Thermal model and applications. JGR Planets, 111(E12). https://doi.org/10.1029/2006JE002735
+- Emran, A., Marzen, L. J., King, D. T., Jr., & Chevrier, V. F. (2021). Thermophysical and compositional analyses of dunes at Hargraves Crater, Mars. The Planetary Science Journal, 2(6), 218. https://doi.org/10.3847/PSJ/ac25ee
+- Ahern, A. A., Rogers, A. D., Edwards, C. S., & Piqueux, S. (2021). Thermophysical properties and surface heterogeneity of landing sites on Mars from overlapping THEMIS observations. JGR Planets, 126(6), e2020JE006713. https://doi.org/10.1029/2020JE006713
+
 ## Sources
 
 Downloads go to `data/raw/src/` (git-ignored). Files whose size already matches
@@ -50,6 +103,7 @@ using HTTP Range requests and retries after connection resets.
 | HiRISE ortho, PSP_002387_1985 RED (from the PSP_002387_1985 / PSP_003798_1985 stereo pair) | `https://hirise.lpl.arizona.edu/PDS/DTM/PSP/ORB_002300_002399/PSP_002387_1985_PSP_003798_1985/PSP_002387_1985_RED_A_01_ORTHO.JP2` | 369 MiB |
 | …its PDS label | same path, `.LBL` | 5 KiB |
 | Jezero thermal inertia v1 (optional, Zenodo record 4931348) | `https://zenodo.org/records/4931348/files/Jezero_Thermal_Inertia_v1.tiff` | 1.6 MiB |
+| Stack et al. (2020) photogeologic map shapefile, zipped (for `compute:sand`) | `https://static-content.springer.com/esm/art%3A10.1007%2Fs11214-020-00739-x/MediaObjects/11214_2020_739_MOESM3_ESM.zip` | 3.3 MiB |
 
 Do **not** substitute the `Jezero_C` or `ESP_045994` products.
 
