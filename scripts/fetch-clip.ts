@@ -20,6 +20,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { basename, delimiter, join, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const SITE_JSON = join(ROOT, 'data', 'site.json');
@@ -60,7 +61,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // ---------------------------------------------------------------- GDAL lookup
 
-interface Gdal {
+export interface Gdal {
   /** Directory holding the GDAL executables, or '' when they're on PATH. */
   bin: string;
   env: NodeJS.ProcessEnv;
@@ -135,7 +136,7 @@ function installHint(): string {
   }
 }
 
-function findGdal(): Gdal {
+export function findGdal(): Gdal {
   const explicit = process.env.GDAL_BIN;
   if (explicit) {
     if (hasGdal(explicit)) return { bin: explicit, env: dataEnv(resolve(explicit, '..'), explicit) };
@@ -161,7 +162,7 @@ interface RunResult {
   stderr: string;
 }
 
-function run(gdal: Gdal, tool: string, args: string[], input?: string): Promise<RunResult> {
+export function run(gdal: Gdal, tool: string, args: string[], input?: string): Promise<RunResult> {
   const cmd = gdal.bin ? join(gdal.bin, `${tool}${EXE}`) : `${tool}${EXE}`;
   return new Promise((res, rej) => {
     const child = spawn(cmd, args, { env: gdal.env, stdio: ['pipe', 'pipe', 'pipe'] });
@@ -179,7 +180,7 @@ function run(gdal: Gdal, tool: string, args: string[], input?: string): Promise<
 }
 
 /** Runs a GDAL tool, echoes its warnings, and throws on a non-zero exit. */
-async function runOk(gdal: Gdal, tool: string, args: string[], input?: string): Promise<string> {
+export async function runOk(gdal: Gdal, tool: string, args: string[], input?: string): Promise<string> {
   const r = await run(gdal, tool, args, input);
   if (r.stderr.trim()) process.stderr.write(r.stderr);
   if (r.code !== 0) throw new Error(`${tool} failed (exit ${r.code}): ${args.join(' ')}`);
@@ -487,4 +488,8 @@ async function main(): Promise<void> {
   step('Done. Open data/raw/*.tif in QGIS (see data/raw/README.md).');
 }
 
-main().catch((err: unknown) => fail(errMsg(err)));
+// Run only as a CLI, not when another script imports the helpers above.
+const isMain =
+  (import.meta as { main?: boolean }).main ??
+  resolve(process.argv[1] ?? '').toLowerCase() === fileURLToPath(import.meta.url).toLowerCase();
+if (isMain) main().catch((err: unknown) => fail(errMsg(err)));
