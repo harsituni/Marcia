@@ -145,7 +145,7 @@ describe('worker protocol', () => {
 });
 
 describe('checkAlerts', () => {
-  it('has the agreed signature (stub until M26)', () => {
+  it('has the agreed signature and is quiet on a healthy walk', () => {
     const r = mockRoute({ start: meta.habitat, stops, constraints }, meta);
     expect(checkAlerts(meta.habitat, r, constraints, 300)).toEqual([]);
   });
