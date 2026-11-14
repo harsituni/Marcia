@@ -115,6 +115,24 @@ The constants are in `src/engine/model.ts` (25°, ×2, ×1.3) and are all
 estimates. `public/data/stops.json` isn't written by this script. It only
 reports where each stop lands.
 
+## Basemap (M20)
+
+```sh
+npm run export:basemap   # after npm run fetch:clip
+```
+
+`scripts/export-basemap.ts` warps the full-resolution HiRISE ortho (the
+`.LBL`/`.JP2` in `src/`, not `ortho_5m.tif`) onto the extent and CRS of
+`elev_5m.tif`, at 1500 × 1500 px (2 m/px, `-r average`). It stretches the
+contrast between the 2nd and 98th percentiles to 1–255, so 0 only ever means
+"no image data", and writes `public/data/basemap.png` as 8-bit greyscale with
+no world file. That file is committed.
+
+Row 0 of the PNG is the north edge, and the image covers exactly the
+600 × 600 grid. The script checks the extent to 0.01 m, checks the PNG size,
+and fails if any row or column is entirely nodata. It drops to 1200 × 1200 if
+the PNG would go over 3 MB.
+
 ## Sources
 
 Downloads go to `data/raw/src/` (git-ignored). Files whose size already matches
