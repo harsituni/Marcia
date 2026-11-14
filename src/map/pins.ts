@@ -16,12 +16,12 @@ export const habitatIcon = divIcon({
 const stopIcons = new Map<string, ReturnType<typeof divIcon>>();
 
 /** Numbered stop pin; `n` is the 1-based visiting order. */
-export function stopIcon(n: number, selected = false) {
-  const key = `${n}${selected ? 's' : ''}`;
+export function stopIcon(n: number, selected = false, dropped = false) {
+  const key = `${n}${selected ? 's' : ''}${dropped ? 'd' : ''}`;
   let icon = stopIcons.get(key);
   if (!icon) {
     icon = divIcon({
-      className: selected ? 'pin pin-stop pin-selected' : 'pin pin-stop',
+      className: `pin pin-stop${selected ? ' pin-selected' : ''}${dropped ? ' pin-dropped' : ''}`,
       html: `<span>${n}</span>`,
       iconSize: [26, 26],
       iconAnchor: [13, 13],

@@ -14,15 +14,15 @@ export function RouteLayer({ route }: { route: RouteResult }) {
     return { out: parts.out.map(cellToLatLng), home: parts.home.map(cellToLatLng) };
   }, [route]);
 
-  if (out.length < 2) return null;
+  if (out.length < 2 && home.length < 2) return null;
 
   // Own pane between the basemap (overlayPane, z 400) and the pins (markerPane, z 600).
   return (
     <Pane name="route" style={{ zIndex: 450 }}>
       <Polyline positions={home} pathOptions={{ ...CASING, dashArray: '2 10' }} interactive={false} />
       <Polyline positions={home} pathOptions={{ ...LINE, dashArray: '2 10' }} interactive={false} />
-      <Polyline positions={out} pathOptions={CASING} interactive={false} />
-      <Polyline positions={out} pathOptions={LINE} interactive={false} />
+      {out.length >= 2 && <Polyline positions={out} pathOptions={CASING} interactive={false} />}
+      {out.length >= 2 && <Polyline positions={out} pathOptions={LINE} interactive={false} />}
     </Pane>
   );
 }

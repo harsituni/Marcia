@@ -33,6 +33,9 @@ export function ReplayBar({ totalMin }: { totalMin: number }) {
   const seekWalk = useAppStore((s) => s.seekWalk);
   const setWalkSpeed = useAppStore((s) => s.setWalkSpeed);
 
+  // After a replan the clock restarts on the new route; show whole-EVA time.
+  const offsetMin = useAppStore((s) => s.replanned?.offsetMin ?? 0);
+
   const playing = replay.status === 'playing';
   const fraction = totalMin > 0 ? replay.elapsedMin / totalMin : 0;
   const button = 'flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/10 hover:bg-white/20';
@@ -62,8 +65,8 @@ export function ReplayBar({ totalMin }: { totalMin: number }) {
         aria-label="Walk progress"
         className="min-w-0 flex-1 accent-mars"
       />
-      <span className="shrink-0 font-mono text-xs whitespace-nowrap tabular-nums" aria-label={`Elapsed ${formatDuration(replay.elapsedMin)} of ${formatDuration(totalMin)}`}>
-        {formatDuration(replay.elapsedMin)} <span className="hidden text-white/50 sm:inline">/ {formatDuration(totalMin)}</span>
+      <span className="shrink-0 font-mono text-xs whitespace-nowrap tabular-nums" aria-label={`Elapsed ${formatDuration(offsetMin + replay.elapsedMin)} of ${formatDuration(offsetMin + totalMin)}`}>
+        {formatDuration(offsetMin + replay.elapsedMin)} <span className="hidden text-white/50 sm:inline">/ {formatDuration(offsetMin + totalMin)}</span>
       </span>
       <div role="group" aria-label="Replay speed" className="flex shrink-0 overflow-hidden rounded-md bg-white/10 font-mono text-[11px]">
         {SPEEDS.map((x) => (
