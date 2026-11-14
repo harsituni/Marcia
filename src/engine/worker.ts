@@ -7,11 +7,14 @@
  * handler below never runs on the main thread. `checkAlerts` is a plain
  * function in `./alerts.ts` for the same reason.
  *
- * `route` and `replan` use A* (M07). `ring` uses the habitat's Dijkstra field
- * (M18), computed once on `init`; `route` also reuses it for the get-home check.
+ * `route` uses A* (M07). `ring` uses the habitat's Dijkstra field (M18),
+ * computed once on `init`; `route` also reuses it for the get-home check.
+ * `replan` routes from the current position back to the habitat, dropping
+ * stops that no longer fit the oxygen left (M23, see `replan.ts`).
  */
 import type { Cell, Constraints, GridMeta, RingResult, RouteRequest, RouteResult, Stop } from '../contracts.ts';
 import { AStar, astarRoute } from './astar.ts';
+import { replanRoute } from './replan.ts';
 import { HomeField, ringPolygon } from './ring.ts';
 
 export type WorkerIn =
@@ -52,10 +55,8 @@ export function handleMessage(state: EngineState | null, msg: WorkerIn): { state
       return { state, out: { type: 'route', result: astarRoute(state.astar, msg.req, state.meta, state.home) } };
     case 'ring':
       return { state, out: { type: 'ring', result: ringPolygon(state.home, msg.oxygenLeftMin) } };
-    case 'replan': {
-      const constraints = { ...msg.constraints, oxygenMin: msg.oxygenLeftMin };
-      return { state, out: { type: 'route', result: astarRoute(state.astar, { start: msg.from, stops: msg.stops, constraints }, state.meta, state.home) } };
-    }
+    case 'replan':
+      return { state, out: { type: 'route', result: replanRoute(state.astar, msg, state.meta) } };
   }
 }
 
