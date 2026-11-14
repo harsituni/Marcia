@@ -10,6 +10,7 @@
     "fetch:clip": "node scripts/fetch-clip.ts",
     "compute:slope": "node scripts/compute-slope.ts",
     "compute:sand": "node scripts/compute-sand.ts",
+    "export:grid": "node scripts/export-grid.ts",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
