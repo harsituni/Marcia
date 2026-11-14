@@ -8,6 +8,7 @@ import { useAppStore } from '../store.ts';
 import { cellToLatLng, gridBounds, latLngToCell } from './coords.ts';
 import { habitatIcon, stopIcon } from './pins.ts';
 import { RouteLayer, RouteLegend } from './RouteLayer.tsx';
+import { LayerToggles, OverlayLayers } from './OverlayLayers.tsx';
 
 /**
  * Grid-space map: CRS.Simple, so one Leaflet unit = one grid cell.
@@ -31,6 +32,7 @@ export function MapView() {
         className="h-full w-full"
       >
         {data.status === 'ready' && <GridLayers grid={data.grid} />}
+        {data.status === 'ready' && <OverlayLayers grid={data.grid} />}
         {route.status === 'ready' && <RouteLayer route={route.result} />}
         {data.status === 'ready' && <StopMarkers editable={editing} />}
         {editing && <AddStopOnClick />}
@@ -47,6 +49,7 @@ export function MapView() {
         </p>
       )}
       {route.status === 'ready' && <RouteLegend />}
+      {data.status === 'ready' && <LayerToggles />}
       {data.status !== 'ready' && (
         <div className="pointer-events-none absolute inset-0 z-[1000] flex items-center justify-center">
           <p className="rounded-md bg-black/60 px-4 py-2 text-sm">

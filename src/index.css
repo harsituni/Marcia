@@ -48,3 +48,19 @@ body {
   height: 20px;
   fill: var(--color-regolith);
 }
+
+/* Overlay rasters: keep cell edges crisp when zoomed in. */
+.pixelated {
+  image-rendering: pixelated;
+}
+
+/* Layer key swatches, matching the overlay textures (src/map/overlays.ts). */
+.hatch-nogo {
+  background: repeating-linear-gradient(-45deg, #d55e00 0 2px, rgb(213 94 0 / 0.3) 2px 4px);
+}
+
+.stipple-sand {
+  background-color: rgb(240 228 66 / 0.25);
+  background-image: radial-gradient(#f0e442 0.8px, transparent 0.9px);
+  background-size: 3px 3px;
+}

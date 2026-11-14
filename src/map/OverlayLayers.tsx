@@ -1,0 +1,99 @@
+import { useMemo } from 'react';
+import type { ReactNode } from 'react';
+import { ImageOverlay, Pane, Polygon } from 'react-leaflet';
+import type { GridData } from '../data/grid.ts';
+import { useAppStore } from '../store.ts';
+import type { LayerId } from '../store.ts';
+import { cellToLatLng, gridBounds } from './coords.ts';
+import { COLORS, classifyCost, difficultyPixels, overlayScale, sandPixels } from './overlays.ts';
+import type { Pixels } from './overlays.ts';
+
+function toDataUrl(p: Pixels): string {
+  const canvas = document.createElement('canvas');
+  canvas.width = p.width;
+  canvas.height = p.height;
+  canvas.getContext('2d')!.putImageData(new ImageData(p.data, p.width, p.height), 0, 0);
+  return canvas.toDataURL();
+}
+
+/** Map overlays (inside the MapContainer). Between the basemap and the route. */
+export function OverlayLayers({ grid }: { grid: GridData }) {
+  const layers = useAppStore((s) => s.layers);
+  const ring = useAppStore((s) => s.ring);
+  const { width, height } = grid.meta;
+  const scale = overlayScale(width);
+  const bounds = gridBounds(grid.meta);
+
+  // Painted only while the layer is on.
+  const difficultyUrl = useMemo(
+    () => (layers.difficulty ? toDataUrl(difficultyPixels(classifyCost(grid.cost), width, height, scale)) : null),
+    [grid.cost, width, height, scale, layers.difficulty],
+  );
+  const sandUrl = useMemo(
+    () => (layers.sand ? toDataUrl(sandPixels(grid.sand, width, height, scale)) : null),
+    [grid.sand, width, height, scale, layers.sand],
+  );
+
+  return (
+    <Pane name="overlays" style={{ zIndex: 420 }}>
+      {difficultyUrl && <ImageOverlay url={difficultyUrl} bounds={bounds} className="pixelated" />}
+      {sandUrl && <ImageOverlay url={sandUrl} bounds={bounds} className="pixelated" />}
+      {layers.ring && ring && ring.polygon.length > 2 && (
+        <Polygon
+          positions={ring.polygon.map(cellToLatLng)}
+          interactive={false}
+          pathOptions={{ color: COLORS.easy, weight: 3, opacity: 0.95, fillColor: COLORS.easy, fillOpacity: 0.08, dashArray: '10 6' }}
+        />
+      )}
+    </Pane>
+  );
+}
+
+const LAYERS: { id: LayerId; label: string; swatch: ReactNode }[] = [
+  {
+    id: 'difficulty',
+    label: 'Walking difficulty',
+    swatch: (
+      <span className="flex gap-0.5" aria-hidden="true">
+        <span className="h-3 w-3 rounded-sm" style={{ background: COLORS.easy }} />
+        <span className="h-3 w-3 rounded-sm" style={{ background: COLORS.caution }} />
+        <span className="hatch-nogo h-3 w-3 rounded-sm" />
+      </span>
+    ),
+  },
+  {
+    id: 'sand',
+    label: 'Soft sand',
+    swatch: <span className="stipple-sand h-3 w-3 rounded-sm" aria-hidden="true" />,
+  },
+  {
+    id: 'ring',
+    label: 'Turn-back ring',
+    swatch: <span className="h-3 w-3 rounded-full border-2 border-dashed" style={{ borderColor: COLORS.easy }} aria-hidden="true" />,
+  },
+];
+
+/** On/off switches for the overlays, with a key for the difficulty colours. */
+export function LayerToggles() {
+  const layers = useAppStore((s) => s.layers);
+  const toggleLayer = useAppStore((s) => s.toggleLayer);
+
+  return (
+    <fieldset className="absolute bottom-3 left-3 z-[1000] rounded-lg bg-black/70 px-3 py-2 text-xs shadow-lg backdrop-blur-sm">
+      <legend className="sr-only">Map layers</legend>
+      <p className="mb-1 font-semibold" aria-hidden="true">
+        Layers
+      </p>
+      {LAYERS.map((l) => (
+        <label key={l.id} className="flex cursor-pointer items-center gap-2 py-0.5">
+          <input type="checkbox" checked={layers[l.id]} onChange={() => toggleLayer(l.id)} className="accent-mars" />
+          <span className="flex-1">{l.label}</span>
+          {l.swatch}
+        </label>
+      ))}
+      {layers.difficulty && (
+        <p className="mt-1 border-t border-white/10 pt-1 text-white/70">Blue easy · yellow caution · hatched no-go</p>
+      )}
+    </fieldset>
+  );
+}

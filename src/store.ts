@@ -1,9 +1,10 @@
 import { create } from 'zustand';
-import type { Cell, Constraints, RouteResult, Stop } from './contracts.ts';
+import type { Cell, Constraints, RingResult, RouteResult, Stop } from './contracts.ts';
 import { loadGrid } from './data/grid.ts';
 import type { GridData } from './data/grid.ts';
 import { createWorkerEngine } from './engine/client.ts';
 import type { EngineClient } from './engine/client.ts';
+import { usableOxygenMin } from './engine/model.ts';
 import { clampConstraints } from './plan/constraints.ts';
 
 export type Mode = 'plan' | 'walk';
@@ -19,6 +20,8 @@ export type DataState =
   | { status: 'loading' }
   | { status: 'ready'; grid: GridData }
   | { status: 'error'; message: string };
+
+export type LayerId = 'difficulty' | 'sand' | 'ring';
 
 export type RouteState =
   | { status: 'idle' }
@@ -52,6 +55,13 @@ interface AppState {
   /** Asks the engine for a route from the habitat through the current stops. */
   planRoute: () => Promise<void>;
 
+  /** Which map overlays are switched on. */
+  layers: Record<LayerId, boolean>;
+  toggleLayer: (id: LayerId) => void;
+  /** Turn-back ring for the usable oxygen; fetched while the ring layer is on. */
+  ring: RingResult | null;
+  planRing: () => Promise<void>;
+
   /** Engine factory; tests swap in a fake worker. */
   makeEngine: () => EngineClient;
 }
@@ -59,6 +69,17 @@ interface AppState {
 let engine: EngineClient | null = null;
 let engineGrid: GridData | null = null;
 let planSeq = 0;
+let ringSeq = 0;
+
+/** Returns the engine, initialised with `grid` (once per grid). */
+function engineFor(grid: GridData, make: () => EngineClient): EngineClient {
+  if (!engine) engine = make();
+  if (engineGrid !== grid) {
+    engine.init(grid.meta, grid.cost);
+    engineGrid = grid;
+  }
+  return engine;
+}
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 let replanTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -155,15 +176,35 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const seq = ++planSeq;
     set({ route: { status: 'planning' } });
     try {
-      if (!engine) engine = get().makeEngine();
-      if (engineGrid !== grid) {
-        engine.init(grid.meta, grid.cost);
-        engineGrid = grid;
-      }
-      const result = await engine.route({ start: grid.meta.habitat, stops: get().stops, constraints: get().constraints });
+      const result = await engineFor(grid, get().makeEngine).route({ start: grid.meta.habitat, stops: get().stops, constraints: get().constraints });
       if (seq === planSeq) set({ route: { status: 'ready', result } });
     } catch (err) {
       if (seq === planSeq) set({ route: { status: 'error', message: errorMessage(err) } });
+    }
+    // Constraints changes reroute through here, so the ring follows them too.
+    if (get().layers.ring) await get().planRing();
+  },
+
+  layers: { difficulty: false, sand: false, ring: false },
+  toggleLayer: (id) => {
+    const on = !get().layers[id];
+    set({ layers: { ...get().layers, [id]: on } });
+    if (id === 'ring' && on) void get().planRing();
+  },
+  ring: null,
+  planRing: async () => {
+    const data = get().data;
+    if (data.status !== 'ready') return;
+    const seq = ++ringSeq;
+    const { oxygenMin, reservePct } = get().constraints;
+    try {
+      const ring = await engineFor(data.grid, get().makeEngine).ring(usableOxygenMin(oxygenMin, reservePct));
+      if (seq === ringSeq) set({ ring });
+    } catch (err) {
+      if (seq === ringSeq) {
+        set({ ring: null });
+        get().showNotice(`Couldn't compute the turn-back ring: ${errorMessage(err)}`);
+      }
     }
   },
 
