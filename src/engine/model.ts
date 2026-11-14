@@ -1,15 +1,38 @@
 /**
- * Walking model shared by the mock router and, later, the real engine (M14
- * may tune these numbers). Kept in one place so both tracks agree.
+ * Walking model and other tuning constants, shared by the mock router and the
+ * real A* engine. This is the ONE config file for them: don't hard-code these
+ * numbers anywhere else.
+ *
+ * Route stats (`RouteResult.distanceM`, `timeMin`, `energyKJ`,
+ * `oxygenUsedMin`) are ESTIMATES. Distance is the 8-connected grid path
+ * length; time, energy and oxygen scale from it with the flat-ground walking
+ * constants below. Slope and terrain don't change them yet (they only steer
+ * the path through `cost.bin`).
  */
 
-/** Suited walking speed on flat ground, metres per minute (~3 km/h). */
+/** True while route stats come from the estimate constants below; the UI can show it as a label. */
+export const STATS_ARE_ESTIMATES = true;
+
+/**
+ * ESTIMATE, no source yet. Suited walking speed on flat ground, metres per
+ * minute (50 m/min = 3 km/h). Assumes steady walking with no stops, and the
+ * same speed uphill, downhill and on sand. `timeMin = distanceM / this`.
+ */
 export const WALK_SPEED_M_PER_MIN = 50;
 
-/** Metabolic power of a suited walk, kilojoules per minute (~300 W). */
+/**
+ * ESTIMATE, no source yet. Metabolic energy of a suited walk, kilojoules per
+ * minute walked (18 kJ/min = 300 W). Assumes a constant rate regardless of
+ * slope, terrain or load. `energyKJ = timeMin × this`.
+ */
 export const ENERGY_KJ_PER_MIN = 18;
 
-/** Oxygen minutes used per minute walked. */
+/**
+ * ESTIMATE, no source yet. Oxygen-supply minutes used per minute walked.
+ * Assumes the suit's oxygen budget (`Constraints.oxygenMin`) is rated in
+ * minutes at walking effort, so 1 minute walked uses 1 minute of supply.
+ * `oxygenUsedMin = timeMin × this`.
+ */
 export const OXYGEN_MIN_PER_MIN = 1;
 
 /**
