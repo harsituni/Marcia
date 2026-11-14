@@ -12,6 +12,7 @@ git-ignored. Don't commit rasters.
 | `elev_5m.tif`   | Elevation (m), Float32                    | bilinear   | -3.4028235e+38    |
 | `ortho_5m.tif`  | HiRISE RED ortho image                    | average    | 0                 |
 | `ti_5m.tif`     | Thermal inertia (optional), Float32       | bilinear   | -9999             |
+| `slope_5m.tif`  | Slope (degrees), Float32 (M09)            | Horn 3×3   | none (checked)    |
 
 All outputs share one grid: 600 × 600 cells at 5 m, covering the
 site.json bounds exactly. They are GeoTIFFs with DEFLATE compression and tiling.
@@ -19,6 +20,22 @@ site.json bounds exactly. They are GeoTIFFs with DEFLATE compression and tiling.
 The script fails if `elev_5m.tif` or `ortho_5m.tif` has any nodata cell, which
 means the site box isn't fully inside the source's valid data. The thermal
 inertia layer is best effort. If it fails, the script only prints a warning.
+
+## Slope (M09)
+
+`slope_5m.tif` is generated from `elev_5m.tif` with `gdaldem slope -compute_edges`
+(Horn's method). The grid is in metres, so no `-s` scale is needed. Run:
+
+```sh
+npm run compute:slope   # after npm run fetch:clip
+```
+
+The script fails unless the slope raster has the same size, geotransform and CRS
+as `elev_5m.tif` and no nodata cells. It finds GDAL the same way as
+`fetch:clip`. `hornSlopeDeg` in `scripts/compute-slope.ts` implements the same
+maths in TypeScript, including GDAL's edge handling, for tests and for later
+steps that need slope without GDAL (M16, `cost.bin`). It matches gdaldem to
+within 0.003° on every cell.
 
 ## Sources
 
