@@ -160,7 +160,7 @@ function Save-Resumable([string]$url, [string]$dest) {
   if (Test-Path $part) { $have = (Get-Item $part).Length }
   if ($null -eq $expected -or $have -lt $expected) {
     if ($have -gt 0) { Write-Host "  resuming $name at $have bytes" } else { Write-Host "  downloading $name" }
-    & curl.exe -L --fail --retry 5 --retry-delay 5 -C - -o $part $url
+    & curl.exe -L --fail --retry 5 --retry-delay 5 --retry-all-errors -C - -o $part $url
     if ($LASTEXITCODE -ne 0) { throw "download failed (curl exit $LASTEXITCODE): $url" }
   }
   $got = (Get-Item $part).Length
@@ -198,6 +198,33 @@ function Get-Info([string]$path) {
   return ($txt | Out-String | ConvertFrom-Json)
 }
 
+# Feed points to gdaltransform on stdin as plain ASCII. Piping with `|` in
+# Windows PowerShell 5.1 prepends a UTF-8 BOM when the console encoding is
+# UTF-8, which corrupts the first point.
+function Invoke-GdalTransform([string[]]$points, [string[]]$argv) {
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = (Get-Command gdaltransform).Source
+  $psi.Arguments = ($argv | ForEach-Object { '"' + ($_ -replace '"', '\"') + '"' }) -join ' '
+  $psi.UseShellExecute = $false
+  $psi.RedirectStandardInput = $true
+  $psi.RedirectStandardOutput = $true
+  # .NET Framework builds the stdin writer from Console.InputEncoding and flushes
+  # its BOM at start; use BOM-less UTF-8 while the process starts.
+  $prevIn = [Console]::InputEncoding
+  try {
+    [Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)
+    $proc = [System.Diagnostics.Process]::Start($psi)
+  } finally { [Console]::InputEncoding = $prevIn }
+  $bytes = [System.Text.Encoding]::ASCII.GetBytes(($points -join "`n") + "`n")
+  $stdin = $proc.StandardInput.BaseStream
+  $stdin.Write($bytes, 0, $bytes.Length)
+  $stdin.Close()
+  $text = $proc.StandardOutput.ReadToEnd()
+  $proc.WaitForExit()
+  if ($proc.ExitCode -ne 0) { throw "gdaltransform failed (exit $($proc.ExitCode))" }
+  return @($text -split "`r?`n" | Where-Object { $_.Trim() })
+}
+
 # Fail unless the whole site box (edges densified) lies inside the raster's extent.
 function Test-Coverage([string]$label, [string]$path, $info) {
   $wkt = $info.coordinateSystem.wkt
@@ -206,15 +233,15 @@ function Test-Coverage([string]$label, [string]$path, $info) {
   [IO.File]::WriteAllText($wktFile, $wkt)
 
   $pts = New-Object System.Collections.Generic.List[string]
-  $n = 8
-  for ($i = 0; $i -le $n; $i++) {
-    $lon = $W + ($E - $W) * $i / $n
-    $lat = $S + ($N - $S) * $i / $n
+  $steps = 8
+  for ($i = 0; $i -le $steps; $i++) {
+    $lon = $W + ($E - $W) * $i / $steps
+    $lat = $S + ($N - $S) * $i / $steps
     $pts.Add("$(Fmt $lon) $(Fmt $S)"); $pts.Add("$(Fmt $lon) $(Fmt $N)")
     $pts.Add("$(Fmt $W) $(Fmt $lat)"); $pts.Add("$(Fmt $E) $(Fmt $lat)")
   }
-  $out = $pts | & gdaltransform -s_srs $SiteGeo -t_srs $wktFile
-  if ($LASTEXITCODE -ne 0) { throw "gdaltransform failed for $label" }
+  $out = Invoke-GdalTransform $pts @('-s_srs', $SiteGeo, '-t_srs', $wktFile)
+  if (@($out).Count -ne $pts.Count) { throw "gdaltransform returned $(@($out).Count) points for $label, expected $($pts.Count)" }
 
   $ul = $info.cornerCoordinates.upperLeft
   $lr = $info.cornerCoordinates.lowerRight
