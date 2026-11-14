@@ -1,0 +1,42 @@
+[
+  {
+    "id": "wildcat-ridge",
+    "name": "Wildcat Ridge",
+    "cell": { "x": 310, "y": 375 },
+    "goal": "Re-sample the fine-grained, sulfate- and clay-rich layers where Perseverance cored Hazeltop and Bearwallow; best odds of preserved organics.",
+    "geologyUnit": "Hogwallow Flats member, delta front",
+    "minerals": ["Fe/Mg sulfate", "clay minerals"],
+    "photo": "../photos/wildcat-ridge.jpg",
+    "scienceValue": 3
+  },
+  {
+    "id": "berea",
+    "name": "Berea",
+    "cell": { "x": 64, "y": 238 },
+    "goal": "Collect carbonate-rich river sandstone from the upper fan (Melyn core site) to date and trace past water.",
+    "geologyUnit": "Tenby formation, upper fan",
+    "minerals": ["carbonate"],
+    "photo": "../photos/berea.jpg",
+    "scienceValue": 2
+  },
+  {
+    "id": "hidden-harbor",
+    "name": "Hidden Harbor",
+    "cell": { "x": 234, "y": 434 },
+    "goal": "Map the anhydrite veins in light-toned sandstone at the Kukaklek core site and sample vein-free rock.",
+    "geologyUnit": "Yori Pass member, delta front",
+    "minerals": ["anhydrite", "sulfate"],
+    "photo": "../photos/hidden-harbor.jpg",
+    "scienceValue": 2
+  },
+  {
+    "id": "amalik",
+    "name": "Amalik",
+    "cell": { "x": 259, "y": 469 },
+    "goal": "Sample the dark coarse mudstone at the base of the fan (Shuyak and Mageik core site) for carbonates and detrital grains.",
+    "geologyUnit": "Amalik member, Shenandoah formation",
+    "minerals": ["Fe/Mg carbonate", "olivine", "pyroxene"],
+    "photo": "../photos/amalik.jpg",
+    "scienceValue": 2
+  }
+]
