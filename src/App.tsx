@@ -70,14 +70,18 @@ export function App() {
         </div>
       </header>
       <main className="flex min-h-0 flex-1 flex-col">
-        <div className={`relative min-h-0 flex-1 ${mode === 'walk' ? 'walk-mode' : ''}`}>
+        <div className={`relative flex min-h-[45vh] flex-1 flex-col ${mode === 'walk' ? 'walk-mode' : ''}`}>
           {mapKind === '3d' ? (
             <Suspense
               fallback={
-                <div className="flex h-full items-center justify-center text-sm text-white/70">Loading 3D…</div>
+                <div className="flex h-full min-h-0 flex-1 items-center justify-center text-sm text-white/70">
+                  Loading 3D…
+                </div>
               }
             >
-              <TerrainView />
+              <div className="min-h-0 flex-1">
+                <TerrainView />
+              </div>
             </Suspense>
           ) : (
             <MapView />
