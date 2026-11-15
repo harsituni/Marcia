@@ -1,46 +1,40 @@
 /**
- * M06: download the HiRISE DTM + ortho for the EVA site and clip them to the
- * box in data/site.json on a 5 m equirectangular grid. Cross-platform
- * (Windows, macOS, Linux); run with `npm run fetch:clip`.
+ * M06: download the HiRISE DTM + ortho for an EVA site and clip them to the
+ * box in data/sites/<id>/site.json on a 5 m equirectangular grid.
+ * Cross-platform (Windows, macOS, Linux); run with
+ * `npm run fetch:clip -- --site <id>` (default jezero, M36).
  *
- * Outputs (git-ignored):
- *   data/raw/elev_5m.tif   DTM, bilinear
- *   data/raw/ortho_5m.tif  ortho image, average
- *   data/raw/ti_5m.tif     thermal inertia (optional, best effort)
- * Sources are downloaded (resumable) into data/raw/src/.
+ * Outputs (git-ignored), in data/raw/<id>/:
+ *   elev_5m.tif   DTM, bilinear
+ *   ortho_5m.tif  ortho image, average
+ *   ti_5m.tif     thermal inertia (optional, best effort; only where the site has one)
+ * Sources (URLs in site.json `sources`) are downloaded (resumable) into data/raw/<id>/src/.
  * See data/raw/README.md for sources, CRS and QGIS notes.
  *
  * Requires GDAL >= 3.2 (gdalinfo, gdalwarp, gdaltransform) with a JPEG2000
  * driver. GDAL is looked up in $GDAL_BIN, then PATH, then common install
  * locations for the OS.
  *
- * Flags: --skip-ti  don't download or clip the optional thermal inertia map.
+ * Flags: --site <id>  which site (data/sites/<id>/site.json).
+ *        --skip-ti    don't download or clip the optional thermal inertia map.
  */
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { basename, delimiter, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-const ROOT = resolve(import.meta.dirname, '..');
-const SITE_JSON = join(ROOT, 'data', 'site.json');
-const RAW_DIR = join(ROOT, 'data', 'raw');
-const SRC_DIR = join(RAW_DIR, 'src');
+import { siteFromArgv, srcFile } from './site.ts';
+import type { SiteConfig, SitePaths } from './site.ts';
 
 const MARS_R = 3396190;
 const CELL_M = 5;
 
-// Sources. Do not substitute Jezero_C or ESP_045994 products.
-const DTM_BASE =
-  'https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/DTM_MOLAtopography_DeltaGeoid_Jezero_DL_Edited_affine_1m_Eqc_latTs0_lon0';
-const ORTHO_BASE =
-  'https://hirise.lpl.arizona.edu/PDS/DTM/PSP/ORB_002300_002399/PSP_002387_1985_PSP_003798_1985/PSP_002387_1985_RED_A_01_ORTHO';
-const TI_URL = 'https://zenodo.org/records/4931348/files/Jezero_Thermal_Inertia_v1.tiff';
-// Stack et al. (2020) Mars 2020 photogeologic map shapefile (Springer ESM, Online Resource 3); used by compute-sand (M12).
-const GEOLOGY_URL =
-  'https://static-content.springer.com/esm/art%3A10.1007%2Fs11214-020-00739-x/MediaObjects/11214_2020_739_MOESM3_ESM.zip';
-/** Local path of the downloaded geology-map zip (read in place via GDAL's /vsizip/). */
-export const GEOLOGY_ZIP = join(SRC_DIR, basename(new URL(GEOLOGY_URL).pathname));
+// Sources come from site.json `sources` (Jezero: do not substitute Jezero_C or ESP_045994 products).
+
+/** Local path of the site's downloaded geology-map zip (read in place via GDAL's /vsizip/), or null if it has none. */
+export function geologyZip(site: SiteConfig, paths: SitePaths): string | null {
+  return site.sources.geology ? srcFile(paths, site.sources.geology.url) : null;
+}
 
 const SKIP_TI = process.argv.includes('--skip-ti');
 const EXE = process.platform === 'win32' ? '.exe' : '';
@@ -318,12 +312,15 @@ async function main(): Promise<void> {
   }
 
   // ---- site box
-  step(`Reading ${SITE_JSON}`);
-  if (!existsSync(SITE_JSON)) fail('data/site.json not found (M04).');
-  const site = JSON.parse(readFileSync(SITE_JSON, 'utf8')) as {
-    bounds: { minLon: number; minLat: number; maxLon: number; maxLat: number };
-    habitat?: { lon: number; lat: number };
-  };
+  let site: SiteConfig;
+  let paths: SitePaths;
+  try {
+    ({ site, paths } = siteFromArgv());
+  } catch (err) {
+    fail(errMsg(err));
+  }
+  const RAW_DIR = paths.rawDir;
+  const SRC_DIR = paths.srcDir;
   const { minLon: W, minLat: S, maxLon: E, maxLat: N } = site.bounds;
   if (!(W < E && S < N)) fail('site.json bounds are invalid (need minLon<maxLon, minLat<maxLat).');
   const hab = site.habitat;
@@ -348,34 +345,40 @@ async function main(): Promise<void> {
   // ---- downloads
   step(`Downloading sources into ${SRC_DIR}`);
   mkdirSync(SRC_DIR, { recursive: true });
-  const src = (url: string) => join(SRC_DIR, basename(new URL(url).pathname));
-  const dtmTif = src(`${DTM_BASE}.tif`);
-  const orthoJp2 = src(`${ORTHO_BASE}.JP2`);
-  const orthoLbl = src(`${ORTHO_BASE}.LBL`);
-  const tiSrc = src(TI_URL);
+  const { sources } = site;
+  const src = (url: string) => srcFile(paths, url);
+  const dtmTif = src(sources.dtm.url);
+  const orthoJp2 = src(sources.ortho.jp2);
+  const orthoLbl = src(sources.ortho.lbl);
+  const tiUrl = sources.thermalInertia;
+  const tiSrc = tiUrl ? src(tiUrl) : '';
   try {
-    await saveResumable(`${DTM_BASE}.tif`, dtmTif);
-    await saveResumable(`${DTM_BASE}.xml`, src(`${DTM_BASE}.xml`));
-    await saveResumable(`${ORTHO_BASE}.LBL`, orthoLbl);
-    await saveResumable(`${ORTHO_BASE}.JP2`, orthoJp2);
+    await saveResumable(sources.dtm.url, dtmTif);
+    for (const u of sources.dtm.sidecars ?? []) await saveResumable(u, src(u));
+    await saveResumable(sources.ortho.lbl, orthoLbl);
+    await saveResumable(sources.ortho.jp2, orthoJp2);
   } catch (err) {
     fail(errMsg(err));
   }
   let haveTi = false;
-  if (!SKIP_TI) {
+  if (!tiUrl) console.log('  no thermal inertia map for this site (slope-only cost)');
+  else if (!SKIP_TI) {
     try {
-      await saveResumable(TI_URL, tiSrc);
+      await saveResumable(tiUrl, tiSrc);
       haveTi = true;
     } catch (err) {
       console.warn(`WARNING: optional thermal inertia download failed, skipping: ${errMsg(err)}`);
     }
   }
   // Geology map for the sand mask (M12). Not needed for the clip itself, so a failure only warns.
-  try {
-    await saveResumable(GEOLOGY_URL, GEOLOGY_ZIP);
-  } catch (err) {
-    console.warn(`WARNING: geology map download failed (needed by compute:sand): ${errMsg(err)}`);
-  }
+  const geoZip = geologyZip(site, paths);
+  if (sources.geology && geoZip) {
+    try {
+      await saveResumable(sources.geology.url, geoZip);
+    } catch (err) {
+      console.warn(`WARNING: geology map download failed (needed by compute:sand): ${errMsg(err)}`);
+    }
+  } else console.log('  no geologic sand map for this site (slope-only cost)');
 
   // ---- coverage: the whole site box (edges densified) must lie inside each source's extent
   const steps = 8;
@@ -496,7 +499,7 @@ async function main(): Promise<void> {
   } catch (err) {
     fail(errMsg(err));
   }
-  step('Done. Open data/raw/*.tif in QGIS (see data/raw/README.md).');
+  step(`Done. Open data/raw/${site.id}/*.tif in QGIS (see data/raw/README.md).`);
 }
 
 // Run only as a CLI, not when another script imports the helpers above.

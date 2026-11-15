@@ -3,6 +3,7 @@ import { MapView } from './map/MapView.tsx';
 import { RoutePanel } from './plan/RoutePanel.tsx';
 import { SettingsPanel } from './plan/SettingsPanel.tsx';
 import { StopCard } from './plan/StopCard.tsx';
+import { SiteSwitcher } from './SiteSwitcher.tsx';
 import { useAppStore } from './store.ts';
 import { Hud } from './walk/Hud.tsx';
 import type { Mode } from './store.ts';
@@ -24,9 +25,12 @@ export function App() {
   return (
     <div className="flex h-full flex-col">
       <header className="flex items-center justify-between gap-4 border-b border-white/10 px-4 py-2">
-        <h1 className="text-lg font-semibold tracking-wide">
-          <span className="text-mars">●</span> Marcia
-        </h1>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
+          <h1 className="text-lg font-semibold tracking-wide">
+            <span className="text-mars">●</span> Marcia
+          </h1>
+          <SiteSwitcher />
+        </div>
         <div role="tablist" aria-label="Mode" className="flex rounded-md bg-white/5 p-0.5 text-sm">
           {MODES.map((m) => (
             <button

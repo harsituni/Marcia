@@ -1,0 +1,50 @@
+[
+  {
+    "id": "altadena",
+    "name": "Altadena",
+    "cell": { "x": 400, "y": 155 },
+    "goal": "Revisit the first drill hole in the boxwork unit, at its edge, and compare fresh bedrock with the drilled powder Curiosity analysed.",
+    "geologyUnit": "Boxwork unit (edge), Mount Sharp",
+    "minerals": [
+      "groundwater-deposited minerals (boxwork)"
+    ],
+    "photo": "../photos/gale-altadena.jpg",
+    "scienceValue": 2
+  },
+  {
+    "id": "valle-de-la-luna",
+    "name": "Valle de la Luna",
+    "cell": { "x": 371, "y": 250 },
+    "goal": "Sample bedrock on the floor of the Monte Grande hollow, then the ridge 10 m away, to test how boxwork ridges and hollows formed.",
+    "geologyUnit": "Boxwork unit, Monte Grande hollow",
+    "minerals": [
+      "fine veins"
+    ],
+    "photo": "../photos/gale-valle-de-la-luna.jpg",
+    "scienceValue": 3
+  },
+  {
+    "id": "atacama",
+    "name": "Atacama",
+    "cell": { "x": 379, "y": 326 },
+    "goal": "Collect the first layered-sulfate bedrock above the boxwork and compare it with the Mineral King drill site 160 m lower.",
+    "geologyUnit": "Layered-sulfate unit, Mount Sharp",
+    "minerals": [
+      "sulfate"
+    ],
+    "photo": "../photos/gale-atacama.jpg",
+    "scienceValue": 2
+  },
+  {
+    "id": "nazca",
+    "name": "Nazca",
+    "cell": { "x": 448, "y": 450 },
+    "goal": "Examine a block packed with disc- and needle-shaped crystal forms; their size hints at the temperature, salts and fluids they grew in.",
+    "geologyUnit": "Layered-sulfate unit, Mount Sharp",
+    "minerals": [
+      "crystal forms (composition unknown)"
+    ],
+    "photo": "../photos/gale-nazca.jpg",
+    "scienceValue": 3
+  }
+]

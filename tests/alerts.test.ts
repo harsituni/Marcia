@@ -132,7 +132,7 @@ describe('several at once', () => {
 });
 
 describe('on real routes', () => {
-  const PUBLIC = join(import.meta.dirname, '..', 'public', 'data');
+  const PUBLIC = join(import.meta.dirname, '..', 'public', 'data', 'jezero');
   const meta = JSON.parse(readFileSync(join(PUBLIC, 'meta.json'), 'utf8')) as GridMeta;
   const stops = JSON.parse(readFileSync(join(PUBLIC, 'stops.json'), 'utf8')) as Stop[];
   const bin = (f: string) => {

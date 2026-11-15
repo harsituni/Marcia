@@ -1,0 +1,58 @@
+[
+  {
+    "id": "jezero",
+    "name": "Jezero Crater western delta",
+    "description": "3x3 km EVA site spanning the western delta top, the delta front scarp and the crater floor at its base. Habitat sits on flat crater floor near the delta base.",
+    "slopeOnly": false,
+    "credits": [
+      {
+        "label": "HiRISE DTM: USGS Mars 2020 TRN Jezero mosaic (1 m)",
+        "url": "https://astrogeology.usgs.gov/search/map/mars_2020_terrain_relative_navigation_hirise_dtm_mosaic"
+      },
+      {
+        "label": "HiRISE ortho PSP_002387_1985_RED_A_01_ORTHO (NASA/JPL/UArizona)",
+        "url": "https://hirise.lpl.arizona.edu/PDS/DTM/PSP/ORB_002300_002399/PSP_002387_1985_PSP_003798_1985/PSP_002387_1985_RED_A_01_ORTHO.JP2"
+      },
+      {
+        "label": "THEMIS thermal inertia: Edwards & Buz (2021)",
+        "url": "https://zenodo.org/records/4931348"
+      },
+      {
+        "label": "Sand: Stack et al. (2020) Jezero photogeologic map",
+        "url": "https://doi.org/10.1007/s11214-020-00739-x"
+      },
+      {
+        "label": "Stop photos: NASA/JPL-Caltech (Perseverance)",
+        "url": "https://science.nasa.gov/mission/mars-2020-perseverance/mars-rock-samples/"
+      }
+    ]
+  },
+  {
+    "id": "gale",
+    "name": "Gale Crater, Mount Sharp boxwork",
+    "description": "3x3 km EVA site on the lower slopes of Mount Sharp (Aeolis Mons) around Curiosity's 2025-2026 boxwork traverse: layered sulfate bedrock cut by ridge-and-hollow boxwork. Slope-only cost: no thermal inertia or mapped sand exists for this box.",
+    "slopeOnly": true,
+    "credits": [
+      {
+        "label": "HiRISE DTM DTEEC_019698_1750_019988_1750_U01 (NASA/JPL/UArizona)",
+        "url": "https://hirise-pds.lpl.arizona.edu/PDS/DTM/ESP/ORB_019600_019699/ESP_019698_1750_ESP_019988_1750/DTEEC_019698_1750_019988_1750_U01.IMG"
+      },
+      {
+        "label": "HiRISE ortho ESP_019698_1750_RED_C_01_ORTHO (NASA/JPL/UArizona)",
+        "url": "https://hirise-pds.lpl.arizona.edu/PDS/DTM/ESP/ORB_019600_019699/ESP_019698_1750_ESP_019988_1750/ESP_019698_1750_RED_C_01_ORTHO.JP2"
+      },
+      {
+        "label": "Thermal inertia: not available for this box (slope-only cost)",
+        "url": "https://themis.asu.edu/landingsites"
+      },
+      {
+        "label": "Curiosity traverse: NASA/JPL-Caltech MSL waypoints",
+        "url": "https://mars.nasa.gov/mmgis-maps/MSL/Layers/json/MSL_waypoints.json"
+      },
+      {
+        "label": "Stop photos: NASA/JPL-Caltech (Curiosity raw images)",
+        "url": "https://mars.nasa.gov/msl/multimedia/raw-images/"
+      }
+    ]
+  }
+]

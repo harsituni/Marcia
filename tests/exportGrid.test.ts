@@ -58,7 +58,7 @@ describe('lonLatToCell', () => {
 });
 
 describe('public/data matches the M01 formats', () => {
-  const DIR = join(import.meta.dirname, '..', 'public', 'data');
+  const DIR = join(import.meta.dirname, '..', 'public', 'data', 'jezero');
   const read = (f: string) => readFileSync(join(DIR, f));
   const ab = (b: Buffer) => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
   // The files are committed (M16), so this always runs; regenerate with `npm run export:grid`.

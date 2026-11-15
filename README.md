@@ -35,8 +35,11 @@ Set up in M02:
 
 ### Runtime grid files
 
-The file formats are defined in M01 (`src/contracts.ts`). The app loads the
-real Jezero files from `public/data/`.
+The file formats are defined in M01 (`src/contracts.ts`). The app loads each
+site's files from `public/data/<id>/` (M36: `jezero`, the default, and
+`gale`), listed in `public/data/sites.json`. Stop photos are in
+`public/data/photos/`. Rebuild a site with the scripts and `--site <id>`; see
+[data/raw/README.md](data/raw/README.md#sites-m36).
 
 | File | Contents |
 | --- | --- |

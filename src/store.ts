@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { START_ID } from './contracts.ts';
 import type { Alert, Cell, Constraints, RingResult, RouteResult, Stop } from './contracts.ts';
 import { loadGrid } from './data/grid.ts';
+import { DEFAULT_SITE_ID, FALLBACK_SITES, SITES_FILE, parseSites, siteDataUrl } from './data/sites.ts';
+import type { SiteInfo } from './data/sites.ts';
 import type { GridData } from './data/grid.ts';
 import { checkAlerts } from './engine/alerts.ts';
 import { createWorkerEngine } from './engine/client.ts';
@@ -15,8 +17,10 @@ import type { Replay } from './walk/replay.ts';
 
 export type Mode = 'plan' | 'walk';
 
-/** Where the grid data comes from: the real Jezero files in `public/data/`. */
-export const DATA_URL = `${import.meta.env?.BASE_URL ?? '/'}data`;
+/** Data root (`public/data/`): `sites.json` plus one folder per site (M36). */
+export const DATA_ROOT = `${import.meta.env?.BASE_URL ?? '/'}data`;
+/** Where the default site's grid data comes from: the real Jezero files in `public/data/jezero/`. */
+export const DATA_URL = siteDataUrl(DATA_ROOT, DEFAULT_SITE_ID);
 
 /** Starting constraints; the crew edits them in the settings panel. */
 export const DEFAULT_CONSTRAINTS: Constraints = { oxygenMin: 480, reservePct: 20, maxSlopeDeg: 25 };
@@ -48,6 +52,13 @@ export type RouteState =
 interface AppState {
   mode: Mode;
   setMode: (mode: Mode) => void;
+
+  /** EVA sites from `sites.json` (M36), and the one loaded. */
+  sites: SiteInfo[];
+  siteId: string;
+  loadSites: () => Promise<void>;
+  /** Switches site: reloads the grid (the worker gets `init`), clears stops and route, keeps the settings. */
+  setSite: (id: string) => Promise<void>;
 
   data: DataState;
   loadData: (baseUrl?: string) => Promise<void>;
@@ -182,6 +193,38 @@ export const useAppStore = create<AppState>()((set, get) => ({
     refreshAlerts();
     // The ring means "now" in Walk and "as planned" in Plan.
     if (mode === 'walk' || get().layers.ring) void get().planRing();
+  },
+
+  sites: FALLBACK_SITES,
+  siteId: DEFAULT_SITE_ID,
+  loadSites: async () => {
+    try {
+      const res = await fetch(`${DATA_ROOT}/${SITES_FILE}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      set({ sites: parseSites(await res.json()) });
+    } catch (err) {
+      console.warn(`sites.json: ${errorMessage(err)}; only the default site is listed`);
+    }
+  },
+  setSite: async (id) => {
+    if (id === get().siteId || get().data.status === 'loading' || !get().sites.some((s) => s.id === id)) return;
+    // New grid: drop everything tied to the old one. Settings (constraints, layers, space weather) stay.
+    planSeq++;
+    ringSeq++;
+    replanSeq++;
+    set({
+      siteId: id,
+      stops: [],
+      selectedStopId: null,
+      route: { status: 'idle' },
+      ring: null,
+      walk: null,
+      replay: { ...IDLE_REPLAY, speed: get().replay.speed },
+      replanned: null,
+      replanning: false,
+      alerts: [],
+    });
+    await get().loadData(siteDataUrl(DATA_ROOT, id));
   },
 
   data: { status: 'idle' },

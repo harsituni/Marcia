@@ -51,16 +51,16 @@ afterAll(() => {
 });
 
 describe('real Jezero data', () => {
-  it('the app points at public/data', () => {
-    expect(DATA_URL).toBe('/data');
+  it('the app points at public/data/jezero (M36: one folder per site)', () => {
+    expect(DATA_URL).toBe('/data/jezero');
   });
 
   it('loads the 600 × 600 grid, basemap and four real stops', () => {
     const g = grid();
     expect(g.meta).toMatchObject({ width: 600, height: 600, cellSizeM: 5 });
     expect(g.cost).toHaveLength(360_000);
-    expect(g.basemapUrl).toBe('/data/basemap.png');
-    expect(readFileSync(join(PUBLIC, 'data', 'basemap.png')).subarray(1, 4).toString()).toBe('PNG');
+    expect(g.basemapUrl).toBe('/data/jezero/basemap.png');
+    expect(readFileSync(join(PUBLIC, 'data', 'jezero', 'basemap.png')).subarray(1, 4).toString()).toBe('PNG');
     expect(store().stops.map((s) => s.id)).toEqual(['wildcat-ridge', 'berea', 'hidden-harbor', 'amalik']);
   });
 
