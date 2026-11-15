@@ -118,8 +118,8 @@ const LAYERS: { id: LayerId; label: string; swatch: ReactNode }[] = [
     label: 'Geology',
     swatch: (
       <span className="flex gap-0.5" aria-hidden="true">
-        <span className="h-3 w-3 rounded-sm" style={{ background: '#117733' }} />
-        <span className="h-3 w-3 rounded-sm" style={{ background: '#DDCC77' }} />
+        <span className="h-3 w-3 rounded-sm" style={{ background: '#1b7837' }} />
+        <span className="h-3 w-3 rounded-sm" style={{ background: '#fdb863' }} />
       </span>
     ),
   },
@@ -128,9 +128,9 @@ const LAYERS: { id: LayerId; label: string; swatch: ReactNode }[] = [
     label: 'CRISM minerals',
     swatch: (
       <span className="flex gap-0.5" aria-hidden="true">
-        <span className="h-3 w-3 rounded-sm" style={{ background: '#117733' }} />
-        <span className="h-3 w-3 rounded-sm" style={{ background: '#88CCEE' }} />
-        <span className="h-3 w-3 rounded-sm" style={{ background: '#DDCC77' }} />
+        <span className="h-3 w-3 rounded-sm" style={{ background: '#e76f51' }} />
+        <span className="h-3 w-3 rounded-sm" style={{ background: '#2a9d8f' }} />
+        <span className="h-3 w-3 rounded-sm" style={{ background: '#e9c46a' }} />
       </span>
     ),
   },

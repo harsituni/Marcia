@@ -52,32 +52,16 @@ export const SURFACE_UNITS = [
 ] as const;
 
 /** Display palette (styling only, not data), one colour per unit in BEDROCK_UNITS then SURFACE_UNITS. */
-/**
- * M34: Paul Tol's colour-blind-safe "muted" scheme (10 colours). The units on
- * the Jezero grid each get a different colour; tests/colorblind.test.ts checks
- * they stay apart under simulated protan, deutan and tritan vision. Units not on
- * any site's grid reuse colours; the same test catches a clash if one appears.
- */
-const UNIT_COLORS: Record<string, string> = {
-  'Crater floor fractured 1': '#332288',
-  'Crater floor fractured 2': '#AA4499',
-  'Delta blocky': '#117733',
-  'Delta thinly layered': '#44AA99',
-  'Delta truncated curvilinear layered': '#88CCEE',
-  'Undifferentiated smooth': '#DDDDDD',
-  'Moderate Cover Us': '#882255',
-  Talus: '#999933',
-  'Aeolian bedforms, large': '#DDCC77',
-  'Aeolian bedforms, small': '#CC6677',
-};
 const PALETTE = [
-  '#CC6677', '#332288', '#DDCC77', '#117733', '#88CCEE', '#882255', '#44AA99', '#999933', '#AA4499', '#DDDDDD',
+  '#8c510a', '#a6611a', '#bf812d', '#d8a75b', '#7b3294', '#c2a5cf', '#5ab4ac',
+  '#2166ac', '#4393c3', '#92c5de', '#1b7837', '#5aae61', '#a6dba0', '#d9f0d3', '#80cdc1',
+  '#f6e8c3', '#e0e0e0', '#bababa', '#878787', '#fdb863', '#fee0b6',
 ];
 
 export const ALL_UNITS: { name: string; kind: GeologyUnit['kind']; color: string }[] = [
   ...BEDROCK_UNITS.map((name) => ({ name, kind: 'bedrock' as const })),
   ...SURFACE_UNITS.map((name) => ({ name, kind: 'surface' as const })),
-].map((u, i) => ({ ...u, color: UNIT_COLORS[u.name] ?? PALETTE[i % PALETTE.length]! }));
+].map((u, i) => ({ ...u, color: PALETTE[i]! }));
 
 /** `hex` → "r g b" for a gdaldem colour file. */
 export function hexToRgb(hex: string): [number, number, number] {
