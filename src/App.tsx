@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { AboutButton, Brief, BriefButton } from './brief/Brief.tsx';
 import { parseHash } from './brief/share.ts';
 import { MapView } from './map/MapView.tsx';
@@ -7,7 +7,7 @@ import { SpaceWeatherChip } from './SpaceWeatherChip.tsx';
 import { SettingsPanel } from './plan/SettingsPanel.tsx';
 import { StopCard } from './plan/StopCard.tsx';
 import { SiteSwitcher } from './SiteSwitcher.tsx';
-import { useAppStore } from './store.ts';
+import { useAppStore, walkWarnings } from './store.ts';
 import { Hud } from './walk/Hud.tsx';
 import { ViewToggle } from './view3d/ViewToggle.tsx';
 import type { Mode } from './store.ts';
@@ -19,9 +19,83 @@ const MODES: { id: Mode; label: string }[] = [
   { id: 'walk', label: 'Walk' },
 ];
 
-export function App() {
+/**
+ * Plan / Walk switch (#89). Clicking Walk with a reason not to walk (EVA blocked,
+ * a stop out of range) opens a warning first; Start anyway or Cancel decides.
+ */
+export function ModeSwitch() {
   const mode = useAppStore((s) => s.mode);
   const setMode = useAppStore((s) => s.setMode);
+  const [warnings, setWarnings] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    if (!warnings) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setWarnings(null);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [warnings]);
+
+  const choose = (id: Mode) => {
+    if (id === 'walk' && mode !== 'walk') {
+      const found = walkWarnings(useAppStore.getState());
+      if (found.length > 0) {
+        setWarnings(found);
+        return;
+      }
+    }
+    setMode(id);
+  };
+
+  return (
+    <>
+      <div role="tablist" aria-label="Mode" className="flex rounded-md bg-white/5 p-0.5 text-sm">
+        {MODES.map((m) => (
+          <button
+            key={m.id}
+            role="tab"
+            aria-selected={mode === m.id}
+            onClick={() => choose(m.id)}
+            className={`rounded px-3 py-1 transition-colors ${
+              mode === m.id ? 'bg-mars text-white' : 'text-white/70 hover:text-white'
+            }`}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+      {warnings && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label="Walk warning" onClick={() => setWarnings(null)}>
+          <section className="w-full max-w-md space-y-3 rounded-lg bg-regolith p-4 text-sm shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-base font-semibold">Walk with warnings</h2>
+            <ul className="list-disc pl-5">
+              {warnings.map((w, i) => (
+                <li key={i}>{w}</li>
+              ))}
+            </ul>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setWarnings(null)} className="rounded border border-white/40 px-3 py-1">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setWarnings(null);
+                  setMode('walk');
+                }}
+                className="rounded bg-mars px-3 py-1 font-semibold text-white"
+              >
+                Start anyway (simulation)
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+    </>
+  );
+}
+
+export function App() {
+  const mode = useAppStore((s) => s.mode);
   const mapKind = useAppStore((s) => s.mapKind);
   const loadData = useAppStore((s) => s.loadData);
 
@@ -54,21 +128,7 @@ export function App() {
           <BriefButton />
           <AboutButton />
           <ViewToggle />
-          <div role="tablist" aria-label="Mode" className="flex rounded-md bg-white/5 p-0.5 text-sm">
-            {MODES.map((m) => (
-              <button
-                key={m.id}
-                role="tab"
-                aria-selected={mode === m.id}
-                onClick={() => setMode(m.id)}
-                className={`rounded px-3 py-1 transition-colors ${
-                  mode === m.id ? 'bg-mars text-white' : 'text-white/70 hover:text-white'
-                }`}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
+          <ModeSwitch />
         </div>
       </header>
       <main className="flex min-h-0 flex-1 flex-col">
