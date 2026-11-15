@@ -114,8 +114,16 @@ export function sitesIndex(root = ROOT) {
       slopeOnly: site.sources.geology === null || site.sources.thermalInertia === null,
       bounds: site.bounds,
       credits: site.credits,
+      // #82: which optional map layers this site has, so the app greys out the rest and never requests them.
+      layers: siteLayers(site.id, site.sources.geology !== null && site.sources.thermalInertia !== null, root),
     };
   });
+}
+
+/** Optional layers a site has: sand when it has sand data, geology / CRISM when their legend files were exported. */
+export function siteLayers(id: string, hasSand: boolean, root = ROOT): { sand: boolean; geology: boolean; crism: boolean } {
+  const dir = join(root, 'public', 'data', id);
+  return { sand: hasSand, geology: existsSync(join(dir, 'geology.json')), crism: existsSync(join(dir, 'crism.json')) };
 }
 
 /** Rewrites `public/data/sites.json` from every data/sites/<id>/site.json. */

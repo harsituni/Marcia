@@ -27,6 +27,19 @@ export interface SiteInfo {
   /** Site lon/lat box from `data/sites/<id>/site.json` (M33 3D georef). */
   bounds: SiteBounds;
   credits: SiteCredit[];
+  /** #82: optional map layers this site has data for. Layers it lacks are greyed out and their files never requested. */
+  layers: SiteLayers;
+}
+
+export type SiteLayer = 'sand' | 'geology' | 'crism';
+export type SiteLayers = Record<SiteLayer, boolean>;
+
+/** Tooltip on a layer a site has no data for. */
+export const LAYER_UNAVAILABLE = 'Not available for this site';
+
+/** True when `site` has data for `layer`; false while the site is unknown. */
+export function siteHasLayer(site: Pick<SiteInfo, 'layers'> | undefined, layer: SiteLayer): boolean {
+  return site?.layers[layer] === true;
 }
 
 export const SITES_FILE = 'sites.json';
@@ -49,6 +62,7 @@ export const FALLBACK_SITES: SiteInfo[] = [
     slopeOnly: false,
     bounds: JEZERO_BOUNDS,
     credits: [],
+    layers: { sand: true, geology: true, crism: true },
   },
 ];
 
@@ -84,6 +98,12 @@ export function parseSites(json: unknown): SiteInfo[] {
       slopeOnly: s.slopeOnly === true,
       bounds: parseBounds(s.bounds, `sites.json[${i}]`),
       credits: Array.isArray(s.credits) ? s.credits.filter((c) => typeof c?.label === 'string' && typeof c?.url === 'string') : [],
+      // Missing or partial `layers` (an older sites.json): treat absent layers as unavailable, so nothing 404s.
+      layers: {
+        sand: s.layers?.sand === true,
+        geology: s.layers?.geology === true,
+        crism: s.layers?.crism === true,
+      },
     };
   });
 }
