@@ -7,6 +7,7 @@ import type { Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EngineClient } from '../src/engine/client.ts';
 import { resetEngine, useAppStore } from '../src/store.ts';
+import { formatDuration } from '../src/plan/profile.ts';
 import { Hud } from '../src/walk/Hud.tsx';
 import { FakeWorker } from './fakeWorker.ts';
 
@@ -48,6 +49,9 @@ describe('Hud', () => {
     expect(label('Compass: heading')).toBeDefined();
     expect(label('Oxygen:')).toBe('Oxygen: 480 of 480 minutes left, OK');
     expect(label('Return margin:')).toBe('Return margin: 384 minutes spare, OK');
+    // At 0 min the walker is at the habitat: no "home in ~0 min" countdown.
+    expect(host.textContent).toContain('At habitat');
+    expect(host.textContent).not.toContain('home in');
     expect(label('Weather MEDA:')).toMatch(/^Weather MEDA:/);
     expect(label('Radiation RAD:')).toMatch(/^Radiation RAD:/);
     expect(label('Mini-map')).toBeDefined();
@@ -88,5 +92,8 @@ describe('Hud', () => {
     await act(async () => store().setWalk({ pathIdx: route.result.path.length - 1, oxygenLeftMin: 90 }));
     expect(host.textContent).toContain('Back at the habitat');
     expect(label('Oxygen:')).toMatch(/IN RESERVE$/);
+    // End of the walk: a summary on the Return margin gauge, not a countdown home.
+    expect(label('Return margin:')).toBe(`Return margin: EVA complete · ${formatDuration(route.result.timeMin)} · 390 min O₂ used`);
+    expect(host.textContent).not.toContain('home in');
   });
 });

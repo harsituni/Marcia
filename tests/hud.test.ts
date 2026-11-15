@@ -111,3 +111,11 @@ describe('deriveHud', () => {
     expect(hud(-5).position).toEqual({ x: 0, y: 0 });
   });
 });
+
+describe('walk phase (UI polish)', () => {
+  it('is start at the habitat before the first step, walking on the way, done back at the end', () => {
+    expect(hud(0).phase).toBe('start');
+    expect(hud(5).phase).toBe('walking');
+    expect(hud(path.length - 1).phase).toBe('done');
+  });
+});

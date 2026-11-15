@@ -25,8 +25,8 @@ export function SiteSwitcher() {
         value={siteId}
         disabled={loading || sites.length < 2}
         onChange={(e) => void setSite(e.currentTarget.value)}
-        title={site?.description}
-        className="max-w-[14rem] rounded-md bg-white/5 px-2 py-1 disabled:opacity-60"
+        title={site ? [site.name, site.description].filter(Boolean).join(': ') : undefined}
+        className="max-w-[60vw] rounded-md sm:max-w-none bg-white/5 px-2 py-1 disabled:opacity-60"
       >
         {sites.map((s) => (
           <option key={s.id} value={s.id} className="bg-regolith">

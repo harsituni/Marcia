@@ -79,7 +79,7 @@ export function Hud() {
         </div>
         {/* Right chrome: return margin + RAD. */}
         <div className="flex flex-col gap-1.5">
-          <MarginGauge hud={hud} />
+          <MarginGauge hud={hud} totalMin={route.result.timeMin} />
           <RadChip />
         </div>
       </div>
@@ -234,17 +234,20 @@ function OxygenGauge({ hud }: { hud: HudState }) {
   );
 }
 
-function MarginGauge({ hud }: { hud: HudState }) {
+function MarginGauge({ hud, totalMin }: { hud: HudState; totalMin: number }) {
   const m = hud.returnMargin;
+  const usedMin = Math.round(hud.oxygen.supplyMin - hud.oxygen.leftMin);
+  // Back at the habitat at the end: a summary, not a countdown home.
+  const done = hud.phase === 'done' ? `EVA complete · ${formatDuration(totalMin)} · ${usedMin} min O₂ used` : null;
   const word = { ok: 'OK', caution: 'TIGHT', critical: 'TURN BACK' }[m.status];
   const rounded = Math.round(m.marginMin);
   return (
     <Gauge
       label="Return margin"
-      ariaLabel={`Return margin: ${rounded} minutes spare, ${word}`}
+      ariaLabel={done ? `Return margin: ${done}` : `Return margin: ${rounded} minutes spare, ${word}`}
       value={`${rounded > 0 ? '+' : rounded < 0 ? '−' : ''}${Math.abs(rounded)}`}
       unit="min"
-      detail={`home in ~${formatDuration(m.homeMin)}`}
+      detail={done ?? (hud.phase === 'start' ? 'At habitat' : `home in ~${formatDuration(m.homeMin)}`)}
       fraction={m.fraction}
       status={m.status}
       statusWord={word}
