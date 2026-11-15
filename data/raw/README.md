@@ -147,6 +147,26 @@ bedforms poorly, and why the geologic map is the primary sand source.
 - Emran, A., Marzen, L. J., King, D. T., Jr., & Chevrier, V. F. (2021). Thermophysical and compositional analyses of dunes at Hargraves Crater, Mars. The Planetary Science Journal, 2(6), 218. https://doi.org/10.3847/PSJ/ac25ee
 - Ahern, A. A., Rogers, A. D., Edwards, C. S., & Piqueux, S. (2021). Thermophysical properties and surface heterogeneity of landing sites on Mars from overlapping THEMIS observations. JGR Planets, 126(6), e2020JE006713. https://doi.org/10.1029/2020JE006713
 
+## Geology layer (M30)
+
+`npm run compute:geology -- --site jezero` rasterizes every unit of the
+Stack et al. (2020) photogeologic map onto the 600 x 600, 5 m elevation grid
+and writes `public/data/jezero/geology.png` (one pixel per cell, coloured by
+unit, transparent where unmapped) and `geology.json` (legend with cell
+counts). Bedrock units (`BedrkUName`) are burned first, then surface units
+(`SurfUName`) on top, so each cell shows what is at the surface. The script
+fails unless the raster has the same size, geotransform and CRS as
+`elev_5m.tif`. Colours are display choices, not part of the map. Gale has no
+geologic map in its site.json, so it gets no geology layer.
+
+- Stack, K. M., Williams, N. R., Calef, F., III, Sun, V. Z., et al. (2020). Photogeologic map of the Perseverance rover field site in Jezero crater constructed by the Mars 2020 Science Team. Space Science Reviews, 216(8), 127. https://doi.org/10.1007/s11214-020-00739-x (shapefile: Online Resource 3)
+
+**CRISM minerals: not added.** No CRISM product covering the site box was
+verified. A candidate is a CRISM dominant-mineralogy map (method of Saranathan & Parente, 2021) of
+the Mars 2020 landing ellipse (Zenodo, https://zenodo.org/record/5575824), but
+its georeferencing against our grid has not been checked, so nothing was
+rasterized.
+
 ## Exported grid (M16)
 
 ```sh
