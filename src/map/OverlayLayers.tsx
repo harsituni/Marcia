@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { ImageOverlay, Pane, Polygon } from 'react-leaflet';
 import type { GridData } from '../data/grid.ts';
+import { VISIONS, feColorMatrix } from './colorblind.ts';
+import type { Vision } from './colorblind.ts';
 import { DATA_ROOT, useAppStore } from '../store.ts';
 import { siteDataUrl } from '../data/sites.ts';
 import { GEOLOGY_FILES, loadGeologyLegend } from './geology.ts';
@@ -140,6 +142,41 @@ const LAYERS: { id: LayerId; label: string; swatch: ReactNode }[] = [
 ];
 
 /** On/off switches for the overlays, with a key for the difficulty colours. */
+/**
+ * M34: previews the map as seen with a colour-vision deficiency, by putting an
+ * SVG colour-matrix filter (Machado et al. 2009, see colorblind.ts) on the map.
+ */
+function VisionPreview() {
+  const [vision, setVision] = useState<Vision>('normal');
+  useEffect(() => {
+    const map = document.querySelector<HTMLElement>('.leaflet-container');
+    if (!map) return;
+    map.style.filter = vision === 'normal' ? '' : `url(#cvd-${vision})`;
+    return () => {
+      map.style.filter = '';
+    };
+  }, [vision]);
+  return (
+    <label className="mt-1 flex items-center gap-2 border-t border-white/10 pt-1">
+      <span className="flex-1">Simulate colour vision</span>
+      <select value={vision} onChange={(e) => setVision(e.currentTarget.value as Vision)} className="rounded bg-white/10 px-1 py-0.5">
+        {VISIONS.map((v) => (
+          <option key={v} value={v} className="bg-regolith">
+            {v === 'normal' ? 'Normal' : v[0]!.toUpperCase() + v.slice(1)}
+          </option>
+        ))}
+      </select>
+      <svg width="0" height="0" className="absolute" aria-hidden="true">
+        {VISIONS.filter((v): v is Exclude<Vision, 'normal'> => v !== 'normal').map((v) => (
+          <filter key={v} id={`cvd-${v}`}>
+            <feColorMatrix type="matrix" values={feColorMatrix(v)} />
+          </filter>
+        ))}
+      </svg>
+    </label>
+  );
+}
+
 export function LayerToggles() {
   const layers = useAppStore((s) => s.layers);
   const toggleLayer = useAppStore((s) => s.toggleLayer);
@@ -237,6 +274,7 @@ export function LayerToggles() {
       {layers.difficulty && (
         <p className="mt-1 border-t border-white/10 pt-1 text-white/70">Blue easy · yellow caution · hatched no-go</p>
       )}
+      <VisionPreview />
     </fieldset>
   );
 }
