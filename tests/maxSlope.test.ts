@@ -15,7 +15,7 @@ const elevation = new Float32Array(W * H);
 for (let y = 0; y < 22; y++)
   for (let x = 0; x < W; x++) elevation[y * W + x] = Math.max(0, 3 - Math.abs(x - 15)) * CELL * Math.tan((RAMP_DEG * Math.PI) / 180);
 
-const stop: Stop = { id: 's1', name: 'Far side', cell: { x: 27, y: 5 }, goal: '', geologyUnit: '', minerals: [], photo: '', scienceValue: 'high' } as Stop;
+const stop: Stop = { id: 's1', name: 'Far side', cell: { x: 27, y: 5 }, goal: '', geologyUnit: '', minerals: [], photo: '', scienceValue: 'high' } as unknown as Stop;
 
 function routeAt(limit: number, withElevation = true): RouteResult {
   const init: WorkerIn = withElevation ? { type: 'init', meta, cost, elevation } : { type: 'init', meta, cost };
