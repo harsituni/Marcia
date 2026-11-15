@@ -18,6 +18,7 @@ export function AlertStack({ atHabitat = false }: { atHabitat?: boolean }) {
   const replanned = useAppStore((s) => s.replanned);
   const replanning = useAppStore((s) => s.replanning);
   const replanWalk = useAppStore((s) => s.replanWalk);
+  const headHome = useAppStore((s) => s.headHome);
   const stops = useAppStore((s) => s.stops);
   const route = useAppStore((s) => s.route);
 
@@ -26,6 +27,8 @@ export function AlertStack({ atHabitat = false }: { atHabitat?: boolean }) {
   const canDrop = route.status === 'ready' && routeHasStops(route.result);
   // The oxygen alert says "Replan." when the route no longer fits: make the button stand out.
   const urged = canDrop && alerts.some((a) => a.severity === 'critical' && a.kind === 'oxygen');
+  // Head home now is for danger only: any red alert (severe storm, oxygen critical, far off route, over the slope limit).
+  const danger = alerts.some((a) => a.severity === 'critical');
   const dropped = replanned ? stops.flatMap((s, i) => (replanned.droppedIds.includes(s.id) ? [`${i + 1}. ${s.name}`] : [])) : [];
 
   return (
@@ -52,7 +55,7 @@ export function AlertStack({ atHabitat = false }: { atHabitat?: boolean }) {
       </ul>
       {replanned && (
         <p role="status" aria-label="Replan result" className="w-full rounded-lg border border-white/15 bg-black/65 px-3 py-1.5 text-xs backdrop-blur-sm">
-          <span className="font-semibold">Replanned.</span>{' '}
+          <span className="font-semibold">{replanned.headedHome ? 'Heading straight home.' : 'Replanned.'}</span>{' '}
           {dropped.length > 0 ? (
             <>
               Dropped: <span className="font-semibold">{dropped.join(', ')}</span>
@@ -63,6 +66,16 @@ export function AlertStack({ atHabitat = false }: { atHabitat?: boolean }) {
             'Straight home from here.'
           )}
         </p>
+      )}
+      {!atHabitat && danger && (
+        <button
+          type="button"
+          onClick={() => void headHome()}
+          disabled={replanning}
+          className="rounded-lg border border-white bg-white px-3 py-1.5 text-sm font-semibold text-regolith shadow-lg backdrop-blur-sm hover:bg-white/90 disabled:opacity-60"
+        >
+          Head home now
+        </button>
       )}
       {!atHabitat && (
         <button

@@ -56,6 +56,8 @@ export interface Replanned {
   startOxygenMin: number;
   /** EVA minutes walked before the replanned route starts. */
   offsetMin: number;
+  /** True when the last replan was "Head home now": no stops, straight to the habitat. */
+  headedHome?: boolean;
 }
 
 /** Space-weather check (M35): the DONKI data and what the rules make of it. */
@@ -184,8 +186,11 @@ interface AppState {
   /**
    * Replans from the crew's position through the stops still ahead, with the
    * oxygen left. Swaps the new route in and records which stops were dropped.
+   * With `headHome` it keeps no stops: straight to the habitat, every stop ahead dropped.
    */
-  replanWalk: () => Promise<void>;
+  replanWalk: (headHome?: boolean) => Promise<void>;
+  /** "Head home now": `replanWalk(true)`. */
+  headHome: () => Promise<void>;
 
   spaceWeather: SpaceWeatherState;
   /** Checks DONKI (cached for 15 min unless `force`) and reroutes if the status changed. */
@@ -520,7 +525,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   alerts: [],
   replanned: null,
   replanning: false,
-  replanWalk: async () => {
+  replanWalk: async (headHome = false) => {
     const { data, route } = get();
     if (data.status !== 'ready' || route.status !== 'ready' || get().replanning) return;
     const { grid } = data;
@@ -535,7 +540,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const seq = ++replanSeq;
     set({ replanning: true });
     try {
-      const result = await engineFor(grid, get().makeEngine).replan(from, ahead, planConstraints(get()), walk.oxygenLeftMin);
+      const result = await engineFor(grid, get().makeEngine).replan(from, headHome ? [] : ahead, planConstraints(get()), walk.oxygenLeftMin);
       if (seq !== replanSeq) return;
       if (result.path.length < 2) {
         const atHome = from.x === grid.meta.habitat.x && from.y === grid.meta.habitat.y;
@@ -543,7 +548,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         return;
       }
       const before = get().replanned;
-      const dropped = new Set([...(before?.droppedIds ?? []), ...result.outOfRangeIds]);
+      const dropped = new Set([...(before?.droppedIds ?? []), ...(headHome ? aheadIds : result.outOfRangeIds)]);
       const replay = get().replay;
       set({
         route: { status: 'ready', result },
@@ -552,6 +557,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
           droppedIds: get().stops.filter((s) => dropped.has(s.id)).map((s) => s.id),
           startOxygenMin: walk.oxygenLeftMin,
           offsetMin: (before?.offsetMin ?? 0) + replay.elapsedMin,
+          ...(headHome ? { headedHome: true } : {}),
         },
         // Carry on from the start of the new route; a finished or unstarted walk waits for Play.
         replay: { ...replay, elapsedMin: 0, status: replay.status === 'playing' ? 'playing' : 'paused' },
@@ -564,6 +570,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
       if (seq === replanSeq) set({ replanning: false });
     }
   },
+
+  headHome: () => get().replanWalk(true),
 
   spaceWeather: { assessment: null, stale: false, loading: false, error: null, demo: false },
   checkSpaceWeather: async (force = false) => {
