@@ -32,7 +32,8 @@ export function StopCardView({ stop, n, onClose }: { stop: Stop; n: number; onCl
   return (
     <article
       aria-label={`Stop ${n}: ${stop.name}`}
-      className="absolute top-3 left-14 z-[1001] flex max-h-[calc(100%-1.5rem)] w-72 flex-col overflow-hidden rounded-lg bg-black/85 text-sm shadow-xl backdrop-blur-sm"
+      // #83: right of the Layers panel (left-3 + w-80 = 21.25rem), so neither covers the other on desktop.
+      className="absolute top-3 left-14 z-[1001] flex max-h-[calc(100%-1.5rem)] w-72 flex-col sm:left-[21.75rem] overflow-hidden rounded-lg bg-black/85 text-sm shadow-xl backdrop-blur-sm"
     >
       <div className="relative aspect-video shrink-0 overflow-hidden bg-white/5">
         {photoUrl && !photoFailed ? (

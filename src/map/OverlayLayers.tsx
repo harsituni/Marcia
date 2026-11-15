@@ -16,6 +16,7 @@ import type { LayerId } from '../store.ts';
 import { cellToLatLng, gridBounds } from './coords.ts';
 import { COLORS, classifyCost, difficultyPixels, overlayScale, sandPixels } from './overlays.ts';
 import type { Pixels } from './overlays.ts';
+import { RouteLegend } from './RouteLayer.tsx';
 
 /** The current site's geology legend, fetched once per site; null while loading or when the site has none. */
 /**
@@ -262,14 +263,18 @@ export function LayerToggles() {
   const available: Record<LayerId, boolean> = { difficulty: true, ring: true, sand: hasSand, geology: hasGeology, crism: hasCrism };
   const vision = useAppStore((s) => s.colorVision);
   const toggleLayer = useAppStore((s) => s.toggleLayer);
+  const routeReady = useAppStore((s) => s.route.status === 'ready');
   const mode = useAppStore((s) => s.mode);
   const geology = useGeologyLegend();
   const crism = useCrismLegend();
   const [openLegend, setOpenLegend] = useState<'geology' | 'crism' | null>(null);
 
   return (
-    <fieldset className="absolute bottom-3 left-3 z-[1000] w-64 max-h-[45vh] overflow-y-auto rounded-lg bg-black/70 px-3 py-2 text-xs shadow-lg backdrop-blur-sm">
+    // #83: the one panel in the bottom-left column. It holds the route key, is wide enough that
+    // long citations wrap instead of clipping, and stops below the zoom buttons; the stop card sits to its right.
+    <fieldset className="absolute bottom-3 left-3 z-[1000] max-h-[calc(100%-6.5rem)] w-80 overflow-y-auto rounded-lg bg-black/70 px-3 py-2 text-xs shadow-lg backdrop-blur-sm">
       <legend className="sr-only">Map layers</legend>
+      {routeReady && <RouteLegend />}
       <p className="mb-1 font-semibold" aria-hidden="true">
         Layers
       </p>
@@ -350,7 +355,7 @@ export function LayerToggles() {
                   ))}
                 </ul>
                 <p className="mt-0.5 text-[10px] text-white/50">{crism.legend.note}</p>
-                <p className="mt-0.5 break-all text-[10px] text-white/50">{crism.legend.source}</p>
+                <p className="mt-0.5 text-[10px] break-words text-white/50">{crism.legend.source}</p>
               </>
             ) : (
               <p>No CRISM map for this site</p>

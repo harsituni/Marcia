@@ -7,7 +7,7 @@ import type { GridData } from '../data/grid.ts';
 import { useAppStore } from '../store.ts';
 import { cellToLatLng, gridBounds, latLngToCell } from './coords.ts';
 import { habitatIcon, stopIcon } from './pins.ts';
-import { RouteLayer, RouteLegend } from './RouteLayer.tsx';
+import { RouteLayer } from './RouteLayer.tsx';
 import { LayerToggles, OverlayLayers } from './OverlayLayers.tsx';
 import { COLORS } from './overlays.ts';
 import { WalkMarker } from './WalkMarker.tsx';
@@ -21,7 +21,6 @@ export function MapView() {
   const route = useAppStore((s) => s.route);
   const notice = useAppStore((s) => s.notice);
   const mode = useAppStore((s) => s.mode);
-  const stopOpen = useAppStore((s) => s.selectedStopId !== null);
   const drawing = useAppStore((s) => s.drawingZone !== null);
   const editing = mode === 'plan' && data.status === 'ready';
 
@@ -58,7 +57,6 @@ export function MapView() {
         </p>
       )}
       {/* The HUD takes the corners in Walk mode; layers stay as set in Plan. */}
-      {mode === 'plan' && route.status === 'ready' && <RouteLegend besideCard={stopOpen} />}
       {mode === 'plan' && data.status === 'ready' && <LayerToggles />}
       {data.status !== 'ready' && (
         <div className="pointer-events-none absolute inset-0 z-[1000] flex items-center justify-center">
