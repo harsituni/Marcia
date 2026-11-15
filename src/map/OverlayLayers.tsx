@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { ImageOverlay, Pane, Polygon } from 'react-leaflet';
 import type { GridData } from '../data/grid.ts';
 import { MIN_ZONE_POINTS } from '../engine/avoid.ts';
-import { VISIONS, colorFor, feColorMatrix, recolorPixels } from './colorblind.ts';
+import { VISIONS, colorFor, recolorPixels } from './colorblind.ts';
 import type { Vision } from './colorblind.ts';
 import { DATA_ROOT, useAppStore } from '../store.ts';
 import { siteDataUrl } from '../data/sites.ts';
@@ -220,23 +220,11 @@ export function AvoidZoneControls() {
 
 /**
  * M34: the crew's colour vision. Anything but Normal swaps geology and CRISM
- * to colour-blind-safe colours (colorblind.ts SAFE_COLORS). "Preview as seen"
- * also puts the Machado et al. (2009) simulation on the whole map as an SVG
- * filter, so someone with normal vision can check the result.
+ * to colour-blind-safe colours (colorblind.ts SAFE_COLORS).
  */
 function ColorVisionControl() {
   const vision = useAppStore((s) => s.colorVision);
   const setVision = useAppStore((s) => s.setColorVision);
-  const [preview, setPreview] = useState(false);
-  const filter = preview && vision !== 'normal' ? `url(#cvd-${vision})` : '';
-  useEffect(() => {
-    const map = document.querySelector<HTMLElement>('.leaflet-container');
-    if (!map) return;
-    map.style.filter = filter;
-    return () => {
-      map.style.filter = '';
-    };
-  }, [filter]);
   return (
     <div className="mt-1 border-t border-white/10 pt-1">
       <label className="flex items-center gap-2">
@@ -249,19 +237,6 @@ function ColorVisionControl() {
           ))}
         </select>
       </label>
-      {vision !== 'normal' && (
-        <label className="mt-0.5 flex cursor-pointer items-center gap-2 text-white/70">
-          <input type="checkbox" checked={preview} onChange={(e) => setPreview(e.currentTarget.checked)} className="accent-mars" />
-          Preview as seen ({vision})
-        </label>
-      )}
-      <svg width="0" height="0" className="absolute" aria-hidden="true">
-        {VISIONS.filter((v): v is Exclude<Vision, 'normal'> => v !== 'normal').map((v) => (
-          <filter key={v} id={`cvd-${v}`}>
-            <feColorMatrix type="matrix" values={feColorMatrix(v)} />
-          </filter>
-        ))}
-      </svg>
     </div>
   );
 }

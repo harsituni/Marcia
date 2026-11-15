@@ -1,6 +1,6 @@
 /**
  * M34: colour-vision-deficiency simulator, used to check the Plan-mode layer
- * colours (tests/colorblind.test.ts) and as an in-app preview (Layers panel).
+ * colours (tests/colorblind.test.ts).
  *
  * Matrices: Machado, Oliveira & Fernandes (2009), "A Physiologically-based
  * Model for Simulation of Color Vision Deficiency", IEEE TVCG 15(6),
@@ -66,11 +66,6 @@ export function closestPair(colors: readonly { name: string; color: string }[], 
       if (d < best.deltaE) best = { a: colors[i]!.name, b: colors[j]!.name, deltaE: d };
     }
   return best;
-}
-
-/** `values` for an SVG `<feColorMatrix type="matrix">` (filters work in linear RGB by default). */
-export function feColorMatrix(vision: Exclude<Vision, 'normal'>): string {
-  return CVD_MATRICES[vision].map((row) => `${row.join(' ')} 0 0`).join(' ') + ' 0 0 0 1 0';
 }
 
 /**

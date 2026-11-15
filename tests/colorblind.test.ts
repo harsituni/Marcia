@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { MIN_DELTA_E, SAFE_COLORS, VISIONS, closestPair, colorFor, deltaE, feColorMatrix, hexToLinear, recolorPixels, simulate } from '../src/map/colorblind.ts';
+import { MIN_DELTA_E, SAFE_COLORS, VISIONS, closestPair, colorFor, deltaE, hexToLinear, recolorPixels, simulate } from '../src/map/colorblind.ts';
 import { COLORS } from '../src/map/overlays.ts';
 
 const json = (f: string) => JSON.parse(readFileSync(join(import.meta.dirname, '..', 'public', 'data', 'jezero', f), 'utf8'));
@@ -76,8 +76,5 @@ describe('simulator', () => {
   it('collapses red and green for protan/deutan but not for normal vision', () => {
     expect(deltaE('#cc3333', '#668800')).toBeGreaterThan(40);
     expect(deltaE('#cc3333', '#668800', 'deuteranopia')).toBeLessThan(deltaE('#cc3333', '#668800') / 2);
-  });
-  it('builds a 4x5 SVG colour matrix', () => {
-    expect(feColorMatrix('tritanopia').split(' ')).toHaveLength(20);
   });
 });
