@@ -1,0 +1,51 @@
+{
+  "source": "Parente, M., Saranathan, A. M., Itoh, Y., Tarnas, J. D., Seelos, F. P., & Mustard, J. F. (2021). Map of the dominant mineralogy over and around the Mars2020 landing ellipse with correspondent spectral signatures [Data set]. Zenodo. https://doi.org/10.5281/zenodo.5575824. Licensed CC BY 4.0.",
+  "note": "Source prototype attributions are preliminary; high- and medium-confidence tones are grouped together.",
+  "categories": [
+    {
+      "name": "Olivine and olivine mixtures",
+      "color": "#e76f51",
+      "classes": [
+        "Olivine",
+        "Olivine+ Smectite",
+        "Olv. Smect + 2.2µm"
+      ],
+      "cells": 186405
+    },
+    {
+      "name": "Carbonates",
+      "color": "#e9c46a",
+      "classes": [
+        "Mg-Carbonate",
+        "Carb. + 2.2µm"
+      ],
+      "cells": 10036
+    },
+    {
+      "name": "Smectites",
+      "color": "#2a9d8f",
+      "classes": [
+        "Fe/Mg-Smectite",
+        "Mg-Smectite 2"
+      ],
+      "cells": 14413
+    },
+    {
+      "name": "Pyroxenes",
+      "color": "#f4a261",
+      "classes": [
+        "High Ca. Pyroxene",
+        "Low Ca. Pyroxene"
+      ],
+      "cells": 19773
+    },
+    {
+      "name": "Kaolinite",
+      "color": "#8d5a3b",
+      "classes": [
+        "Kaolinite"
+      ],
+      "cells": 34275
+    }
+  ]
+}

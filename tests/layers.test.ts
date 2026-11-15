@@ -82,13 +82,13 @@ describe('layer toggles', () => {
       route: { status: 'idle' },
       stops: [],
       ring: null,
-      layers: { difficulty: false, sand: false, ring: false },
+      layers: { difficulty: false, sand: false, geology: false, crism: false, ring: false },
       constraints: DEFAULT_CONSTRAINTS,
     });
   });
 
   it('each layer switches on and off', () => {
-    for (const id of ['difficulty', 'sand', 'ring'] as const) {
+    for (const id of ['difficulty', 'sand', 'geology', 'crism', 'ring'] as const) {
       expect(store().layers[id]).toBe(false);
       store().toggleLayer(id);
       expect(store().layers[id]).toBe(true);
