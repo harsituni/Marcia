@@ -217,6 +217,35 @@ describe('Replan', () => {
   });
 });
 
+describe('Head home now', () => {
+  it('replans with no stops: the route ends at the habitat with no stop legs, and every stop ahead is dropped', async () => {
+    await start(480, 20);
+    store().playWalk();
+    store().tickWalk(0.5);
+    const n = worker.sent.length;
+    await store().headHome();
+    await settle();
+    const msg = worker.sent.slice(n).find((m) => m.type === 'replan');
+    expect(msg?.type === 'replan' && msg.stops).toEqual([]);
+    const r = route();
+    expect(r.path.at(-1)).toEqual(grid().meta.habitat);
+    expect(r.legs.every((l) => l.toId === START_ID)).toBe(true);
+    expect(store().replanned).toMatchObject({ droppedIds: ['stop-a', 'stop-b', 'stop-c', 'stop-d'], headedHome: true });
+    expect(store().replanning).toBe(false);
+  });
+
+  it('keeps stops dropped by an earlier replan', async () => {
+    await start(30, 50);
+    store().playWalk();
+    store().tickWalk(0.5);
+    await store().replanWalk();
+    const earlier = store().replanned!.droppedIds;
+    await store().headHome();
+    expect(store().replanned!.droppedIds).toEqual(expect.arrayContaining(earlier));
+    expect(store().replanned!.droppedIds.length).toBe(store().stops.length);
+  });
+});
+
 describe('HUD banner', () => {
   let host: HTMLDivElement;
   let root: Root;
@@ -256,5 +285,24 @@ describe('HUD banner', () => {
       expect(result.textContent).toContain(store().stops.find((s) => s.id === id)!.name);
     }
     expect(items().filter((li) => li.textContent!.includes('short for this route'))).toEqual([]);
+  });
+
+  it('Head home now: hidden at the habitat, disabled while replanning, and the note says heading straight home', async () => {
+    await start(480, 20);
+    await act(async () => root.render(<Hud />));
+    const btn = () => [...host.querySelectorAll('button')].find((b) => b.textContent === 'Head home now');
+    expect(btn()).toBeUndefined(); // standing on the habitat
+    await act(async () => store().setWalk({ pathIdx: 1, oxygenLeftMin: 400 }));
+    expect(btn()!.disabled).toBe(false);
+    await act(async () => useAppStore.setState({ replanning: true }));
+    expect(btn()!.disabled).toBe(true);
+    await act(async () => useAppStore.setState({ replanning: false }));
+    await act(async () => {
+      btn()!.click();
+      await settle();
+    });
+    const note = host.querySelector('[aria-label="Replan result"]')!;
+    expect(note.textContent).toMatch(/^Heading straight home\. Dropped: /);
+    expect(route().legs.every((l) => l.toId === START_ID)).toBe(true);
   });
 });

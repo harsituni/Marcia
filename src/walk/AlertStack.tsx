@@ -18,6 +18,8 @@ export function AlertStack({ atHabitat = false }: { atHabitat?: boolean }) {
   const replanned = useAppStore((s) => s.replanned);
   const replanning = useAppStore((s) => s.replanning);
   const replanWalk = useAppStore((s) => s.replanWalk);
+  const headHome = useAppStore((s) => s.headHome);
+  const severe = useAppStore((s) => s.spaceWeather.assessment?.status === 'block');
   const stops = useAppStore((s) => s.stops);
   const route = useAppStore((s) => s.route);
 
@@ -52,7 +54,7 @@ export function AlertStack({ atHabitat = false }: { atHabitat?: boolean }) {
       </ul>
       {replanned && (
         <p role="status" aria-label="Replan result" className="w-full rounded-lg border border-white/15 bg-black/65 px-3 py-1.5 text-xs backdrop-blur-sm">
-          <span className="font-semibold">Replanned.</span>{' '}
+          <span className="font-semibold">{replanned.headedHome ? 'Heading straight home.' : 'Replanned.'}</span>{' '}
           {dropped.length > 0 ? (
             <>
               Dropped: <span className="font-semibold">{dropped.join(', ')}</span>
@@ -63,6 +65,18 @@ export function AlertStack({ atHabitat = false }: { atHabitat?: boolean }) {
             'Straight home from here.'
           )}
         </p>
+      )}
+      {!atHabitat && (
+        <button
+          type="button"
+          onClick={() => void headHome()}
+          disabled={replanning}
+          className={`rounded-lg border px-3 py-1.5 text-sm font-semibold shadow-lg backdrop-blur-sm disabled:opacity-60 ${
+            severe ? 'border-white bg-white text-regolith hover:bg-white/90' : 'border-white/15 bg-black/65 hover:bg-black/80'
+          }`}
+        >
+          Head home now
+        </button>
       )}
       {!atHabitat && (
         <button
