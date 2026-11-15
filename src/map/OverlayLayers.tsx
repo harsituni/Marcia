@@ -81,7 +81,7 @@ export function OverlayLayers({ grid }: { grid: GridData }) {
     <Pane name="overlays" style={{ zIndex: 420 }}>
       {difficultyUrl && <ImageOverlay url={difficultyUrl} bounds={bounds} className="pixelated" />}
       {showGeology && <ImageOverlay url={`${geology.url}/${GEOLOGY_FILES.image}`} bounds={bounds} opacity={0.6} className="pixelated" />}
-      {showCrism && <ImageOverlay url={`${crism.url}/${CRISM_FILES.image}`} bounds={bounds} className="pixelated" />}
+      {showCrism && <ImageOverlay url={`${crism.url}/${CRISM_FILES.image}`} bounds={bounds} opacity={0.6} className="pixelated" />}
       {sandUrl && <ImageOverlay url={sandUrl} bounds={bounds} className="pixelated" />}
       {showRing && ring && ring.polygon.length > 2 && (
         <Polygon
