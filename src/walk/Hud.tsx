@@ -32,6 +32,7 @@ export function Hud() {
   const stops = useAppStore((s) => s.stops);
   const constraints = useAppStore((s) => s.constraints);
   const walk = useAppStore((s) => s.walk);
+  const notice = useAppStore((s) => s.notice);
 
   const ready = data.status === 'ready' && route.status === 'ready' && route.result.path.length > 1;
   const hud = useMemo(
@@ -60,21 +61,26 @@ export function Hud() {
   return (
     <section aria-label="Helmet display" className="hud pointer-events-none absolute inset-0 z-[1000] flex flex-col justify-between p-2 sm:p-3">
       <div className="hud-vignette absolute inset-0" aria-hidden="true" />
+      {notice && (
+        <p role="status" className="absolute top-2 left-1/2 z-[1] -translate-x-1/2 rounded-md bg-amber-900/90 px-3 py-1.5 text-sm shadow-lg">
+          {notice}
+        </p>
+      )}
       <div className="relative flex flex-wrap items-start justify-between gap-2">
         {/* Left chrome: oxygen + MEDA stacked so the map centre stays clear. */}
         <div className="flex flex-col gap-1.5">
           <OxygenGauge hud={hud} />
           <MedaChip />
         </div>
-        <Compass hud={hud} />
+        {/* Centre column: compass with alerts/replan tucked under it (not mid-map). */}
+        <div className="order-first flex w-full min-w-0 flex-col gap-1.5 sm:order-none sm:w-auto sm:max-w-xl sm:flex-1">
+          <Compass hud={hud} />
+          <AlertStack />
+        </div>
         {/* Right chrome: return margin + RAD. */}
         <div className="flex flex-col gap-1.5">
           <MarginGauge hud={hud} />
           <RadChip />
-        </div>
-        {/* Its own row; on wide screens pulled up under the compass, between the gauges. */}
-        <div className="w-full sm:-mt-[4.5rem] sm:px-40">
-          <AlertStack />
         </div>
       </div>
       {/* Phone: replay bar on its own row. Wider: along the bottom edge, between the two panels. */}
@@ -123,7 +129,7 @@ function Compass({ hud }: { hud: HudState }) {
     <div
       role="img"
       aria-label={`Compass: heading ${formatHeading(hud.headingDeg)}`}
-      className={`${PANEL} order-first w-full px-2 pt-1 pb-1.5 sm:order-none sm:w-auto sm:max-w-xl sm:flex-1`}
+      className={`${PANEL} w-full px-2 pt-1 pb-1.5`}
     >
       <div className="text-center font-mono text-sm leading-tight font-semibold tabular-nums">{formatHeading(hud.headingDeg)}</div>
       <div className="relative h-9 overflow-hidden">

@@ -107,6 +107,16 @@ describe('oxygen margin', () => {
     expect(a[0]!.message).toBe('Oxygen is 4 min short for this route. Replan.');
   });
 
+  it('does not urge another replan when the route is already straight home', () => {
+    const homeOnly: RouteResult = {
+      ...route,
+      legs: [{ fromId: 'start', toId: 'start', startIdx: 0, endIdx: route.path.length - 1 }],
+    };
+    const a = checkAlerts({ x: 50, y: 10 }, homeOnly, constraints, 20 + 15 - 4);
+    expect(kinds(a)).toEqual(['oxygen:critical']);
+    expect(a[0]!.message).toBe('Oxygen is 4 min short for the walk home. Head back now.');
+  });
+
   it('is critical once into the reserve', () => {
     expect(at(20)[0]).toEqual({ kind: 'oxygen', severity: 'critical', message: 'Into the oxygen reserve: 20 min left. Head home now.' });
   });
