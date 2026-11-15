@@ -70,34 +70,77 @@ export function closestPair(colors: readonly { name: string; color: string }[], 
 
 /**
  * Colour-blind-safe replacements, used when the crew picks a colour-vision type
- * other than normal. Paul Tol's "muted" qualitative scheme
- * (https://personal.sron.nl/~pault/), keyed by geology unit / CRISM category
- * name. tests/colorblind.test.ts checks every layer stays apart (ΔE ≥ 15)
- * under every vision type with these colours.
+ * other than normal, keyed by geology unit / CRISM category name. Each vision
+ * type has its own palette, so the map, legends and swatches differ per type.
+ *
+ * Colours come from Paul Tol's muted, bright and vibrant schemes
+ * (https://personal.sron.nl/~pault/) and from Okabe & Ito (2008), chosen by
+ * search against the Machado simulator above. tests/colorblind.test.ts checks
+ * every layer stays apart (ΔE ≥ 15) under the vision type its palette is for.
  */
-export const SAFE_COLORS: Readonly<Record<string, string>> = {
-  // Geology (Stack et al. 2020 units on the Jezero grid)
-  'Crater floor fractured 1': '#332288',
-  'Crater floor fractured 2': '#AA4499',
-  'Delta blocky': '#117733',
-  'Delta thinly layered': '#44AA99',
-  'Delta truncated curvilinear layered': '#88CCEE',
-  'Undifferentiated smooth': '#DDDDDD',
-  'Moderate Cover Us': '#882255',
-  Talus: '#999933',
-  'Aeolian bedforms, large': '#DDCC77',
-  'Aeolian bedforms, small': '#CC6677',
-  // CRISM mineral categories
-  'Olivine and olivine mixtures': '#117733',
-  Carbonates: '#DDCC77',
-  Smectites: '#88CCEE',
-  Pyroxenes: '#CC6677',
-  Kaolinite: '#AA4499',
+export const SAFE_PALETTES: Record<Exclude<Vision, 'normal'>, Readonly<Record<string, string>>> = {
+  protanopia: {
+    // Geology (Stack et al. 2020 units on the Jezero grid)
+    'Crater floor fractured 1': '#0072B2',
+    'Crater floor fractured 2': '#33BBEE',
+    'Delta blocky': '#009E73',
+    'Delta thinly layered': '#DDDDDD',
+    'Delta truncated curvilinear layered': '#332288',
+    'Undifferentiated smooth': '#F0E442',
+    'Moderate Cover Us': '#882255',
+    Talus: '#E69F00',
+    'Aeolian bedforms, large': '#DDCC77',
+    'Aeolian bedforms, small': '#CC3311',
+    // CRISM mineral categories
+    'Olivine and olivine mixtures': '#117733',
+    Carbonates: '#F0E442',
+    Smectites: '#332288',
+    Pyroxenes: '#EE3377',
+    Kaolinite: '#DDDDDD',
+  },
+  deuteranopia: {
+    // Geology
+    'Crater floor fractured 1': '#4477AA',
+    'Crater floor fractured 2': '#66CCEE',
+    'Delta blocky': '#228833',
+    'Delta thinly layered': '#DDDDDD',
+    'Delta truncated curvilinear layered': '#44AA99',
+    'Undifferentiated smooth': '#DDCC77',
+    'Moderate Cover Us': '#882255',
+    Talus: '#332288',
+    'Aeolian bedforms, large': '#D55E00',
+    'Aeolian bedforms, small': '#F0E442',
+    // CRISM
+    'Olivine and olivine mixtures': '#D55E00',
+    Carbonates: '#DDDDDD',
+    Smectites: '#33BBEE',
+    Pyroxenes: '#882255',
+    Kaolinite: '#332288',
+  },
+  tritanopia: {
+    // Geology
+    'Crater floor fractured 1': '#332288',
+    'Crater floor fractured 2': '#66CCEE',
+    'Delta blocky': '#228833',
+    'Delta thinly layered': '#DDDDDD',
+    'Delta truncated curvilinear layered': '#999933',
+    'Undifferentiated smooth': '#F0E442',
+    'Moderate Cover Us': '#882255',
+    Talus: '#CC79A7',
+    'Aeolian bedforms, large': '#CC3311',
+    'Aeolian bedforms, small': '#EE6677',
+    // CRISM
+    'Olivine and olivine mixtures': '#CC3311',
+    Carbonates: '#F0E442',
+    Smectites: '#56B4E9',
+    Pyroxenes: '#332288',
+    Kaolinite: '#AA4499',
+  },
 };
 
-/** The colour to draw a legend entry with for `vision`: the original for normal vision, else its safe replacement. */
+/** The colour to draw a legend entry with for `vision`: the original for normal vision, else its safe replacement from that vision's palette. */
 export function colorFor(name: string, original: string, vision: Vision): string {
-  return vision === 'normal' ? original : (SAFE_COLORS[name] ?? original);
+  return vision === 'normal' ? original : (SAFE_PALETTES[vision][name] ?? original);
 }
 
 const rgbKey = (r: number, g: number, b: number) => (r << 16) | (g << 8) | b;

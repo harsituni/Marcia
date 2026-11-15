@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { MIN_DELTA_E, SAFE_COLORS, VISIONS, closestPair, colorFor, deltaE, hexToLinear, recolorPixels, simulate } from '../src/map/colorblind.ts';
+import { MIN_DELTA_E, SAFE_PALETTES, VISIONS, closestPair, colorFor, deltaE, hexToLinear, recolorPixels, simulate } from '../src/map/colorblind.ts';
 import { COLORS } from '../src/map/overlays.ts';
 
 const json = (f: string) => JSON.parse(readFileSync(join(import.meta.dirname, '..', 'public', 'data', 'jezero', f), 'utf8'));
@@ -47,18 +47,29 @@ describe('M34: Plan-mode layer colours under a colour-blindness simulator', () =
 });
 
 describe('M34: colour-blind-safe palettes used when a colour vision is chosen', () => {
-  for (const [layer, colors] of Object.entries(KNOWN_CLASHES)) {
-    it(`${layer}: every legend entry has a safe colour`, () => {
-      for (const c of colors) expect(SAFE_COLORS[c.name], c.name).toMatch(/^#[0-9a-f]{6}$/i);
-    });
-    for (const vision of VISIONS.filter((v) => v !== 'normal'))
-      it(`${layer}: safe colours stay apart for ${vision} (ΔE ≥ ${MIN_DELTA_E})`, () =>
+  const TYPES = VISIONS.filter((v): v is Exclude<(typeof VISIONS)[number], 'normal'> => v !== 'normal');
+  for (const [layer, colors] of Object.entries(KNOWN_CLASHES))
+    for (const vision of TYPES) {
+      it(`${layer}: the ${vision} palette has a colour for every entry`, () => {
+        for (const c of colors) expect(SAFE_PALETTES[vision][c.name], c.name).toMatch(/^#[0-9a-f]{6}$/i);
+      });
+      it(`${layer}: the ${vision} palette stays apart under ${vision} (ΔE ≥ ${MIN_DELTA_E})`, () =>
         check(colors.map((c) => ({ name: c.name, color: colorFor(c.name, c.color, vision) })), vision));
-  }
+    }
+
+  it('each vision type gets a different palette', () => {
+    for (const [layer, colors] of Object.entries(KNOWN_CLASHES))
+      for (const [i, a] of TYPES.entries())
+        for (const b of TYPES.slice(i + 1))
+          expect(
+            colors.some((c) => SAFE_PALETTES[a][c.name] !== SAFE_PALETTES[b][c.name]),
+            `${layer}: ${a} vs ${b}`,
+          ).toBe(true);
+  });
 
   it('normal vision keeps the original colours', () => {
-    expect(colorFor('Carbonates', '#e9c46a', 'normal')).toBe('#e9c46a');
-    expect(colorFor('Carbonates', '#e9c46a', 'deuteranopia')).toBe(SAFE_COLORS.Carbonates);
+    for (const colors of Object.values(KNOWN_CLASHES)) for (const c of colors) expect(colorFor(c.name, c.color, 'normal')).toBe(c.color);
+    expect(colorFor('Carbonates', '#e9c46a', 'deuteranopia')).toBe(SAFE_PALETTES.deuteranopia.Carbonates);
     expect(colorFor('Not a unit', '#123456', 'protanopia')).toBe('#123456');
   });
 

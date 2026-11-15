@@ -21,7 +21,7 @@ import { RouteLegend } from './RouteLayer.tsx';
 /** The current site's geology legend, fetched once per site; null while loading or when the site has none. */
 /**
  * M34: `url` with its legend colours swapped for the crew's colour vision
- * (colorblind.ts SAFE_COLORS). Normal vision gets `url` itself; otherwise
+ * (colorblind.ts SAFE_PALETTES). Normal vision gets `url` itself; otherwise
  * null until the recoloured copy is ready.
  */
 function useVisionImage(url: string | null, items: readonly { name: string; color: string }[] | undefined): string | null {
@@ -234,7 +234,7 @@ export function AvoidZoneControls() {
 
 /**
  * M34: the crew's colour vision. Anything but Normal swaps geology and CRISM
- * to colour-blind-safe colours (colorblind.ts SAFE_COLORS).
+ * to colour-blind-safe colours (colorblind.ts SAFE_PALETTES).
  */
 function ColorVisionControl() {
   const vision = useAppStore((s) => s.colorVision);
