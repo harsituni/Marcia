@@ -82,7 +82,7 @@ describe('layer toggles', () => {
       route: { status: 'idle' },
       stops: [],
       ring: null,
-      layers: { difficulty: false, sand: false, ring: false },
+      layers: { difficulty: false, sand: false, geology: false, ring: false },
       constraints: DEFAULT_CONSTRAINTS,
     });
   });

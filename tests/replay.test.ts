@@ -75,7 +75,7 @@ describe('walk replay in the store', () => {
       walk: null,
       replay: IDLE_REPLAY,
       mode: 'plan',
-      layers: { difficulty: false, sand: false, ring: false },
+      layers: { difficulty: false, sand: false, geology: false, ring: false },
       constraints: DEFAULT_CONSTRAINTS,
     });
   });
