@@ -189,7 +189,7 @@ let liveCheck: DonkiCheck | null = null;
 function engineFor(grid: GridData, make: () => EngineClient): EngineClient {
   if (!engine) engine = make();
   if (engineGrid !== grid) {
-    engine.init(grid.meta, grid.cost);
+    engine.init(grid.meta, grid.cost, grid.elevation);
     engineGrid = grid;
   }
   return engine;
@@ -376,7 +376,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     ringOxygen = oxygen;
     ringBusy = true;
     try {
-      const ring = await engineFor(data.grid, get().makeEngine).ring(oxygen);
+      const ring = await engineFor(data.grid, get().makeEngine).ring(oxygen, get().constraints.maxSlopeDeg);
       if (seq === ringSeq) set({ ring });
     } catch (err) {
       if (seq === ringSeq) {
