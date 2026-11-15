@@ -1,0 +1,75 @@
+{
+  "source": "Stack et al. (2020), doi:10.1007/s11214-020-00739-x",
+  "units": [
+    {
+      "value": 8,
+      "name": "Crater floor fractured 1",
+      "kind": "bedrock",
+      "color": "#2166ac",
+      "cells": 7194
+    },
+    {
+      "value": 9,
+      "name": "Crater floor fractured 2",
+      "kind": "bedrock",
+      "color": "#4393c3",
+      "cells": 17100
+    },
+    {
+      "value": 11,
+      "name": "Delta blocky",
+      "kind": "bedrock",
+      "color": "#1b7837",
+      "cells": 70319
+    },
+    {
+      "value": 14,
+      "name": "Delta thinly layered",
+      "kind": "bedrock",
+      "color": "#d9f0d3",
+      "cells": 12621
+    },
+    {
+      "value": 15,
+      "name": "Delta truncated curvilinear layered",
+      "kind": "bedrock",
+      "color": "#80cdc1",
+      "cells": 36979
+    },
+    {
+      "value": 16,
+      "name": "Undifferentiated smooth",
+      "kind": "surface",
+      "color": "#f6e8c3",
+      "cells": 97168
+    },
+    {
+      "value": 18,
+      "name": "Moderate Cover Us",
+      "kind": "surface",
+      "color": "#bababa",
+      "cells": 10119
+    },
+    {
+      "value": 19,
+      "name": "Talus",
+      "kind": "surface",
+      "color": "#878787",
+      "cells": 12548
+    },
+    {
+      "value": 20,
+      "name": "Aeolian bedforms, large",
+      "kind": "surface",
+      "color": "#fdb863",
+      "cells": 95582
+    },
+    {
+      "value": 21,
+      "name": "Aeolian bedforms, small",
+      "kind": "surface",
+      "color": "#fee0b6",
+      "cells": 355
+    }
+  ]
+}

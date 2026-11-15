@@ -10,6 +10,7 @@
     "fetch:clip": "node scripts/fetch-clip.ts",
     "compute:slope": "node scripts/compute-slope.ts",
     "compute:sand": "node scripts/compute-sand.ts",
+    "compute:geology": "node scripts/compute-geology.ts",
     "export:grid": "node scripts/export-grid.ts",
     "export:basemap": "node scripts/export-basemap.ts",
     "dev": "vite",
