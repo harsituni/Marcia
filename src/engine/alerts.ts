@@ -24,10 +24,16 @@
  *
  * All thresholds live in `model.ts`.
  */
+import { START_ID } from '../contracts.ts';
 import type { Alert, Cell, Constraints, RouteResult } from '../contracts.ts';
 import { OFF_ROUTE_CRITICAL_M, OFF_ROUTE_WARN_M, OXYGEN_MARGIN_WARN_MIN, SLOPE_WARN_MARGIN_DEG } from './model.ts';
 import { slopeDegAt } from './terrain.ts';
 import type { Terrain } from './terrain.ts';
+
+/** True when the route still visits a science stop (something Replan can drop). */
+export function routeHasStops(route: Pick<RouteResult, 'legs'>): boolean {
+  return route.legs.some((l) => l.toId !== START_ID);
+}
 
 export function checkAlerts(
   position: Cell,
@@ -48,7 +54,15 @@ export function checkAlerts(
   if (oxygenLeftMin <= reserveMin) {
     alerts.push({ kind: 'oxygen', severity: 'critical', message: `Into the oxygen reserve: ${fmt(oxygenLeftMin)} min left. Head home now.` });
   } else if (marginMin < 0) {
-    alerts.push({ kind: 'oxygen', severity: 'critical', message: `Oxygen is ${fmt(-marginMin)} min short for this route. Replan.` });
+    // Only urge Replan when there are still stops to drop; a straight-home route
+    // that's over budget can't get shorter by replanning again.
+    alerts.push({
+      kind: 'oxygen',
+      severity: 'critical',
+      message: routeHasStops(route)
+        ? `Oxygen is ${fmt(-marginMin)} min short for this route. Replan.`
+        : `Oxygen is ${fmt(-marginMin)} min short for the walk home. Head back now.`,
+    });
   } else if (marginMin < OXYGEN_MARGIN_WARN_MIN) {
     alerts.push({ kind: 'oxygen', severity: 'warn', message: `Oxygen margin is down to ${fmt(marginMin)} min.` });
   }
