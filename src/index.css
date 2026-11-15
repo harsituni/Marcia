@@ -21,6 +21,19 @@ body {
   background: var(--color-regolith);
 }
 
+/* Cesium fills its host; keep the credit strip readable on the dark UI. */
+.cesium-host .cesium-viewer,
+.cesium-host .cesium-viewer-cesiumWidgetContainer,
+.cesium-host .cesium-widget,
+.cesium-host .cesium-widget canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.cesium-host .cesium-viewer-bottom {
+  bottom: 2.5rem;
+}
+
 /* Map pins (Leaflet divIcons, see src/map/pins.ts). */
 .pin {
   display: flex;

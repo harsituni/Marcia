@@ -112,6 +112,7 @@ export function sitesIndex(root = ROOT) {
       name: site.name,
       description: site.description,
       slopeOnly: site.sources.geology === null || site.sources.thermalInertia === null,
+      bounds: site.bounds,
       credits: site.credits,
     };
   });

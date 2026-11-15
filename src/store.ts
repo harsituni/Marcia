@@ -23,6 +23,9 @@ import type { Replay } from './walk/replay.ts';
 
 export type Mode = 'plan' | 'walk';
 
+/** Map projection: Leaflet 2D (editable) or Cesium 3D (view-only, M33). */
+export type MapKind = '2d' | '3d';
+
 /** Data root (`public/data/`): `sites.json` plus one folder per site (M36). */
 export const DATA_ROOT = `${import.meta.env?.BASE_URL ?? '/'}data`;
 /** Where the default site's grid data comes from: the real Jezero files in `public/data/jezero/`. */
@@ -74,6 +77,10 @@ export type RouteState =
 interface AppState {
   mode: Mode;
   setMode: (mode: Mode) => void;
+
+  /** Leaflet (2D) or Cesium (3D). Stop edit only works in 2D. */
+  mapKind: MapKind;
+  setMapKind: (kind: MapKind) => void;
 
   /** EVA sites from `sites.json` (M36), and the one loaded. */
   sites: SiteInfo[];
@@ -233,6 +240,11 @@ export const useAppStore = create<AppState>()((set, get) => ({
     refreshAlerts();
     // The ring means "now" in Walk and "as planned" in Plan.
     if (mode === 'walk' || get().layers.ring) void get().planRing();
+  },
+
+  mapKind: '2d',
+  setMapKind: (mapKind) => {
+    if (mapKind !== get().mapKind) set({ mapKind });
   },
 
   sites: FALLBACK_SITES,
