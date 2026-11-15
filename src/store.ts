@@ -16,6 +16,8 @@ import type { SharedPlan, SpaceWeatherSnapshot } from './brief/share.ts';
 import type { DonkiBundle, SpaceWeather } from './engine/spaceWeather.ts';
 import stormDemo from '../fixtures/donki/storm.json';
 import { clampConstraints } from './plan/constraints.ts';
+import { MIN_ZONE_POINTS } from './engine/avoid.ts';
+import type { AvoidZone } from './engine/avoid.ts';
 import type { Vision } from './map/colorblind.ts';
 import { positionAt } from './walk/hud.ts';
 import type { WalkState } from './walk/hud.ts';
@@ -100,6 +102,18 @@ interface AppState {
   /** Moves a stop. Returns false (and leaves it) if the cell isn't walkable. */
   moveStop: (id: string, cell: Cell) => boolean;
   removeStop: (id: string) => void;
+
+  /** M32: crew-drawn avoid zones (polygons of grid cells); the router treats cells inside as blocked. */
+  avoidZones: AvoidZone[];
+  /** Corners of the zone being drawn, or null when not drawing. While drawing, map clicks add corners, not stops. */
+  drawingZone: Cell[] | null;
+  startZone: () => void;
+  addZonePoint: (cell: Cell) => void;
+  /** Closes the zone being drawn and reroutes. Returns false (and keeps drawing) with fewer than 3 corners. */
+  finishZone: () => boolean;
+  cancelZone: () => void;
+  /** Removes every avoid zone and reroutes. */
+  clearZones: () => void;
 
   /** Stop whose card is open, if any. */
   selectedStopId: string | null;
@@ -195,6 +209,9 @@ function engineFor(grid: GridData, make: () => EngineClient): EngineClient {
   if (engineGrid !== grid) {
     engine.init(grid.meta, grid.cost, grid.elevation);
     engineGrid = grid;
+    // A fresh engine has no avoid zones; resend the crew's (M32).
+    const zones = useAppStore.getState().avoidZones;
+    if (zones.length) engine.avoid(zones);
   }
   return engine;
 }
@@ -271,6 +288,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
     set({
       siteId: id,
       stops: [],
+      avoidZones: [],
+      drawingZone: null,
       selectedStopId: null,
       route: { status: 'idle' },
       ring: null,
@@ -323,6 +342,27 @@ export const useAppStore = create<AppState>()((set, get) => ({
       selectedStopId: get().selectedStopId === id ? null : get().selectedStopId,
     });
     void get().planRoute();
+  },
+
+  avoidZones: [],
+  drawingZone: null,
+  startZone: () => set({ drawingZone: [], selectedStopId: null }),
+  addZonePoint: (cell) => {
+    const drawing = get().drawingZone;
+    if (drawing) set({ drawingZone: [...drawing, cell] });
+  },
+  finishZone: () => {
+    const drawing = get().drawingZone;
+    if (!drawing || drawing.length < MIN_ZONE_POINTS) return false;
+    set({ avoidZones: [...get().avoidZones, drawing], drawingZone: null });
+    syncAvoid(get());
+    return true;
+  },
+  cancelZone: () => set({ drawingZone: null }),
+  clearZones: () => {
+    if (!get().avoidZones.length && !get().drawingZone) return;
+    set({ avoidZones: [], drawingZone: null });
+    syncAvoid(get());
   },
 
   selectedStopId: null,
@@ -620,6 +660,13 @@ function moveWalk(replay: Replay, forceRing = false): void {
   const stale = ringOxygen === null || Math.abs(oxygen - ringOxygen) >= RING_STEP_MIN;
   // One request at a time: the next tick picks up whatever changed meanwhile.
   if (forceRing || replay.status === 'done' || (stale && !ringBusy)) void useAppStore.getState().planRing();
+}
+
+/** Sends the avoid zones to the engine and reroutes (M32). */
+function syncAvoid(s: AppState): void {
+  if (s.data.status !== 'ready') return;
+  engineFor(s.data.grid, s.makeEngine).avoid(s.avoidZones);
+  void s.planRoute();
 }
 
 /** Drops the cached engine (tests, or after swapping the factory). */

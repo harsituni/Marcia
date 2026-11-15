@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { ImageOverlay, Pane, Polygon } from 'react-leaflet';
 import type { GridData } from '../data/grid.ts';
+import { MIN_ZONE_POINTS } from '../engine/avoid.ts';
 import { VISIONS, colorFor, feColorMatrix, recolorPixels } from './colorblind.ts';
 import type { Vision } from './colorblind.ts';
 import { DATA_ROOT, useAppStore } from '../store.ts';
@@ -178,6 +179,45 @@ const LAYERS: { id: LayerId; label: string; swatch: ReactNode | ((vision: Vision
 ];
 
 /** On/off switches for the overlays, with a key for the difficulty colours. */
+/** M32: draw / finish / clear the crew's avoid zones. The router blocks every cell inside one and reroutes. */
+export function AvoidZoneControls() {
+  const zones = useAppStore((s) => s.avoidZones.length);
+  const drawing = useAppStore((s) => s.drawingZone);
+  const startZone = useAppStore((s) => s.startZone);
+  const finishZone = useAppStore((s) => s.finishZone);
+  const cancelZone = useAppStore((s) => s.cancelZone);
+  const clearZones = useAppStore((s) => s.clearZones);
+  const btn = 'rounded bg-white/10 px-2 py-0.5 hover:bg-white/20 disabled:opacity-40';
+  return (
+    <div role="group" aria-label="Avoid zones" className="mt-1 border-t border-white/10 pt-1">
+      <p className="mb-1 flex items-center gap-1.5 font-semibold">
+        <span className="h-3 w-3 rounded-sm border border-dashed" style={{ borderColor: COLORS.noGo, background: `${COLORS.noGo}40` }} aria-hidden="true" />
+        Avoid zones{zones > 0 && <span className="font-normal text-white/60">({zones})</span>}
+      </p>
+      {drawing ? (
+        <div className="flex flex-wrap items-center gap-1">
+          <button type="button" className={btn} disabled={drawing.length < MIN_ZONE_POINTS} onClick={() => finishZone()}>
+            Finish ({drawing.length} pts)
+          </button>
+          <button type="button" className={btn} onClick={cancelZone}>
+            Cancel
+          </button>
+          {drawing.length < MIN_ZONE_POINTS && <span className="text-white/60">Click {MIN_ZONE_POINTS - drawing.length} more</span>}
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-1">
+          <button type="button" className={btn} onClick={startZone}>
+            Draw zone
+          </button>
+          <button type="button" className={btn} disabled={zones === 0} onClick={clearZones}>
+            Clear
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * M34: the crew's colour vision. Anything but Normal swaps geology and CRISM
  * to colour-blind-safe colours (colorblind.ts SAFE_COLORS). "Preview as seen"
@@ -324,6 +364,7 @@ export function LayerToggles() {
       {layers.difficulty && (
         <p className="mt-1 border-t border-white/10 pt-1 text-white/70">Blue easy · yellow caution · hatched no-go</p>
       )}
+      <AvoidZoneControls />
       <ColorVisionControl />
     </fieldset>
   );

@@ -1,4 +1,5 @@
 import type { Cell, Constraints, GridMeta, RingResult, RouteRequest, RouteResult, Stop } from '../contracts.ts';
+import type { AvoidZone } from './avoid.ts';
 import type { WorkerIn, WorkerOut } from './worker.ts';
 
 /** The part of `Worker` the client uses, so tests can pass a fake. */
@@ -28,6 +29,11 @@ export class EngineClient {
   init(meta: GridMeta, cost: Float32Array, elevation?: Float32Array): void {
     // Structured clone (no transfer) so the caller's grid stays usable.
     this.worker.postMessage(elevation ? { type: 'init', meta, cost, elevation } : { type: 'init', meta, cost });
+  }
+
+  /** M32: replaces the avoid zones; the next route / ring / replan uses them. No reply. */
+  avoid(zones: AvoidZone[]): void {
+    this.worker.postMessage({ type: 'avoid', zones });
   }
 
   route(req: RouteRequest): Promise<RouteResult> {
