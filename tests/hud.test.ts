@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { START_ID } from '../src/contracts.ts';
 import type { RouteResult, Stop } from '../src/contracts.ts';
 import { bearingDeg, compassTicks, deriveHud, formatHeading, positionAt, relativeBearing } from '../src/walk/hud.ts';
+import type { SpaceWeather } from '../src/engine/spaceWeather.ts';
 
 const stop = (id: string, x: number): Stop => ({ id, name: id.toUpperCase(), cell: { x, y: 0 }, goal: '', geologyUnit: '', minerals: [], photo: '', scienceValue: 1 });
 
@@ -117,5 +118,49 @@ describe('walk phase (UI polish)', () => {
     expect(hud(0).phase).toBe('start');
     expect(hud(5).phase).toBe('walking');
     expect(hud(path.length - 1).phase).toBe('done');
+  });
+
+  it('just short of home on the way back: still walking, but the countdown rounds to 0', () => {
+    const near = hud(19.9);
+    expect(near.phase).toBe('walking');
+    expect(Math.round(near.returnMargin.homeMin)).toBe(0);
+    expect(hud(12).phase).toBe('walking');
+    expect(Math.round(hud(12).returnMargin.homeMin)).toBeGreaterThan(0);
+  });
+});
+
+describe('storm limits in the HUD', () => {
+  const sw = (status: 'block' | 'tighten'): SpaceWeather => ({ status, reasons: [{ status, text: 'demo', eventId: 'x' }], missing: [], fetchedAt: '2026-11-15T00:00:00Z' });
+  const stormHud = (pathIdx: number, oxygenLeftMin: number, status: 'block' | 'tighten' = 'tighten') =>
+    deriveHud({ route, stops, constraints, spaceWeather: sw(status), meta: { cellSizeM: 10 }, walk: { pathIdx, oxygenLeftMin } });
+
+  it('the oxygen reserve rises by 10 points', () => {
+    expect(hud(0).oxygen.reserveMin).toBe(96); // 20% of 480
+    expect(stormHud(0, 480).oxygen).toMatchObject({ reserveMin: 144, status: 'ok' }); // 30% of 480
+    expect(stormHud(0, 480, 'block').oxygen.reserveMin).toBe(144);
+  });
+
+  it('the Return margin is 75% of the spare above the reserve, minus the walk home', () => {
+    // Idx 10 is the turn-round point: 100 m (2 min) from home either way.
+    const clear = hud(10, 200).returnMargin.marginMin;
+    expect(clear).toBeCloseTo(200 - 96 - 2);
+    const storm = stormHud(10, 200).returnMargin.marginMin;
+    expect(storm).toBeCloseTo(0.75 * (200 - 144) - 2);
+    expect(stormHud(10, 200, 'block').returnMargin.marginMin).toBeCloseTo(storm);
+    expect(storm).toBeLessThan(clear);
+  });
+
+  it('the start margin in a storm is the ring share of the spare', () => {
+    expect(stormHud(0, 480).returnMargin.marginMin).toBeCloseTo(0.75 * (480 - 144));
+  });
+
+  it('a clear assessment changes nothing', () => {
+    const clear = { ...sw('tighten'), status: 'clear' as const, reasons: [] };
+    expect(deriveHud({ route, stops, constraints, spaceWeather: clear, meta: { cellSizeM: 10 }, walk: { pathIdx: 10, oxygenLeftMin: 200 } })).toEqual(hud(10, 200));
+  });
+
+  it('a spare already below zero is not shrunk further by the ring share', () => {
+    // Left 100 under a 30% reserve (144): spare −44, which the ring share must not make −33.
+    expect(stormHud(10, 100).returnMargin.marginMin).toBeCloseTo(-44 - 2);
   });
 });

@@ -6,6 +6,8 @@
 import { START_ID } from '../contracts.ts';
 import type { Cell, Constraints, GridMeta, RouteResult, Stop } from '../contracts.ts';
 import { OXYGEN_MIN_PER_MIN, WALK_SPEED_M_PER_MIN } from '../engine/model.ts';
+import { effectiveConstraints, ringOxygenFor } from '../engine/spaceWeather.ts';
+import type { SpaceWeather } from '../engine/spaceWeather.ts';
 
 /** Where the crew is on the planned route, and what's left in the tank. */
 export interface WalkState {
@@ -80,6 +82,7 @@ export interface HudState {
    * that's the shorter of retracing it or finishing it; on a replanned route
    * (which starts where the crew was, not at the habitat) it's finishing it.
    * Pressing Replan swaps in the direct path home through the stops that still fit.
+   * In a storm the spare is taken as the turn-back ring's share (`ringOxygenFor`).
    */
   returnMargin: { marginMin: number; homeMin: number; fraction: number; status: Status };
   /** 'start': at the habitat before the first step; 'done': back at the habitat at the end of the path. */
@@ -89,12 +92,17 @@ export interface HudState {
 export function deriveHud(input: {
   route: Pick<RouteResult, 'path' | 'legs'>;
   stops: Stop[];
+  /** The crew's own settings; space weather tightens them here, as the planner does. */
   constraints: Constraints;
+  /** Current space-weather assessment (null or clear: no change). */
+  spaceWeather?: SpaceWeather | null;
   /** `habitat` matters on replanned routes, whose path starts at the crew, not the habitat. */
   meta: Pick<GridMeta, 'cellSizeM'> & { habitat?: Cell };
   walk: WalkState;
 }): HudState {
-  const { route, stops, constraints, meta, walk } = input;
+  const { route, stops, meta, walk } = input;
+  const sw = input.spaceWeather ?? null;
+  const constraints = effectiveConstraints(input.constraints, sw);
   const { path, legs } = route;
   const last = path.length - 1;
   const idx = Math.min(Math.max(walk.pathIdx, 0), last);
@@ -129,7 +137,9 @@ export function deriveHud(input: {
   // Retracing only leads home when the route started there.
   const homeM = startsAtHome ? Math.min(here, total - here) : total - here;
   const homeMin = (homeM / WALK_SPEED_M_PER_MIN) * OXYGEN_MIN_PER_MIN;
-  const marginMin = leftMin - reserveMin - homeMin;
+  // Spare above the reserve, as the turn-back ring budgets it (75% of it in a storm; never shrunk when already short).
+  const spareMin = leftMin - reserveMin;
+  const marginMin = (spareMin > 0 ? ringOxygenFor(spareMin, sw) : spareMin) - homeMin;
   const usable = Math.max(1, supplyMin - reserveMin);
 
   return {

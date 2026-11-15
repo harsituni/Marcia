@@ -33,6 +33,7 @@ export function Hud() {
   const constraints = useAppStore((s) => s.constraints);
   const walk = useAppStore((s) => s.walk);
   const notice = useAppStore((s) => s.notice);
+  const spaceWeather = useAppStore((s) => s.spaceWeather.assessment);
 
   const ready = data.status === 'ready' && route.status === 'ready' && route.result.path.length > 1;
   const hud = useMemo(
@@ -42,12 +43,13 @@ export function Hud() {
             route: route.result,
             stops,
             constraints,
+            spaceWeather,
             meta: data.grid.meta,
             // Before the walk starts: standing at the habitat with a full supply.
             walk: walk ?? { pathIdx: 0, oxygenLeftMin: constraints.oxygenMin },
           })
         : null,
-    [data, route, stops, constraints, walk],
+    [data, route, stops, constraints, spaceWeather, walk],
   );
 
   if (!ready || !hud || data.status !== 'ready' || route.status !== 'ready') {
@@ -75,7 +77,7 @@ export function Hud() {
         {/* Centre column: compass with alerts/replan tucked under it (not mid-map). */}
         <div className="order-first flex w-full min-w-0 flex-col gap-1.5 sm:order-none sm:w-auto sm:max-w-xl sm:flex-1">
           <Compass hud={hud} />
-          <AlertStack />
+          <AlertStack atHabitat={hud.phase !== 'walking'} />
         </div>
         {/* Right chrome: return margin + RAD. */}
         <div className="flex flex-col gap-1.5">
@@ -239,15 +241,18 @@ function MarginGauge({ hud, totalMin }: { hud: HudState; totalMin: number }) {
   const usedMin = Math.round(hud.oxygen.supplyMin - hud.oxygen.leftMin);
   // Back at the habitat at the end: a summary, not a countdown home.
   const done = hud.phase === 'done' ? `EVA complete · ${formatDuration(totalMin)} · ${usedMin} min O₂ used` : null;
+  // At the habitat there is no walk home to count: no spare number, just the state.
+  const atHabitat = hud.phase !== 'walking';
   const word = { ok: 'OK', caution: 'TIGHT', critical: 'TURN BACK' }[m.status];
   const rounded = Math.round(m.marginMin);
+  const arriving = !atHabitat && Math.round(m.homeMin) === 0;
   return (
     <Gauge
       label="Return margin"
-      ariaLabel={done ? `Return margin: ${done}` : `Return margin: ${rounded} minutes spare, ${word}`}
-      value={`${rounded > 0 ? '+' : rounded < 0 ? '−' : ''}${Math.abs(rounded)}`}
-      unit="min"
-      detail={done ?? (hud.phase === 'start' ? 'At habitat' : `home in ~${formatDuration(m.homeMin)}`)}
+      ariaLabel={done ? `Return margin: ${done}` : atHabitat ? 'Return margin: at habitat' : `Return margin: ${rounded} minutes spare, ${word}`}
+      value={atHabitat ? '—' : `${rounded > 0 ? '+' : rounded < 0 ? '−' : ''}${Math.abs(rounded)}`}
+      unit={atHabitat ? '' : 'min'}
+      detail={done ?? (atHabitat ? 'At habitat' : arriving ? 'Arriving at habitat' : `home in ~${formatDuration(m.homeMin)}`)}
       fraction={m.fraction}
       status={m.status}
       statusWord={word}
