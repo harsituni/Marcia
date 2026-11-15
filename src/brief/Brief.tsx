@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { RingResult, RouteResult, Stop } from '../contracts.ts';
 import type { GridData } from '../data/grid.ts';
 import { effectiveConstraints, eventIds, spaceWeatherHeadline } from '../engine/spaceWeather.ts';
 import { formatDistance, formatDuration } from '../plan/profile.ts';
 import { fmtTime } from '../SpaceWeatherChip.tsx';
 import { sharePlanFrom, useAppStore } from '../store.ts';
-import { expectedAlerts, legRows, totals } from './brief.ts';
+import { datasetsUsed, expectedAlerts, legRows, totals } from './brief.ts';
+import type { DatasetEntry } from './brief.ts';
+import { useCrismLegend, useGeologyLegend } from '../map/OverlayLayers.tsx';
 import { estimates } from './estimates.ts';
 import { shareUrl } from './share.ts';
 import type { SpaceWeatherSnapshot } from './share.ts';
@@ -13,7 +15,74 @@ import type { SpaceWeatherSnapshot } from './share.ts';
 /** App build for the share link: the commit CI builds from, or "dev". */
 export const APP_VERSION = String(import.meta.env?.VITE_COMMIT || 'dev').slice(0, 7);
 
-const DONKI_CREDIT = { label: 'NASA DONKI space weather (CCMC)', url: 'https://kauai.ccmc.gsfc.nasa.gov/DONKI/' };
+/** Lists every data source and modelled estimate (#81), shared by the brief and the About panel. */
+function DatasetList({ entries }: { entries: DatasetEntry[] }) {
+  const data = entries.filter((e) => !e.modelled);
+  const modelled = entries.filter((e) => e.modelled);
+  return (
+    <>
+      <ul className="list-disc pl-5">
+        {data.map((c) => (
+          <li key={c.label}>
+            {c.label}
+            {c.url && (
+              <>
+                : <span className="break-all">{c.url}</span>
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1 font-semibold">Modelled estimates (not data)</p>
+      <ul className="list-disc pl-5">
+        {modelled.map((c) => (
+          <li key={c.label}>{c.label}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+/** The current site's sources: credits, geology / CRISM when present, DONKI, modelled entries. */
+function useDatasets(): DatasetEntry[] {
+  const site = useAppStore((s) => s.sites.find((x) => x.id === s.siteId));
+  const geology = useGeologyLegend().legend;
+  const crism = useCrismLegend().legend;
+  return useMemo(() => datasetsUsed(site?.credits ?? [], { geology, crism }), [site, geology, crism]);
+}
+
+/** Header button + panel: About Marcia and its data sources (#81). */
+export function AboutButton() {
+  const [open, setOpen] = useState(false);
+  const datasets = useDatasets();
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className="rounded-md bg-white/5 px-2.5 py-1 text-sm hover:bg-white/10">
+        About
+      </button>
+      {open && (
+        <div className="fixed inset-0 z-[2000] flex items-start justify-center overflow-auto bg-black/70 p-2 sm:p-6" role="dialog" aria-modal="true" aria-label="About and data sources" onClick={() => setOpen(false)}>
+          <section className="w-full max-w-2xl space-y-2 rounded-lg bg-regolith p-4 text-sm shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold">About Marcia · Data sources</h2>
+              <button type="button" onClick={() => setOpen(false)} className="rounded px-2 py-0.5 hover:bg-white/10" aria-label="Close">
+                ✕
+              </button>
+            </div>
+            <p className="text-white/70">Marcia plans Mars EVA walks on real orbital terrain. Below is every dataset behind this site, and what is modelled rather than measured.</p>
+            <DatasetList entries={datasets} />
+          </section>
+        </div>
+      )}
+    </>
+  );
+}
 
 /** Header button that opens the mission brief. */
 export function BriefButton() {
@@ -43,6 +112,7 @@ export function Brief() {
   const site = useAppStore((s) => s.sites.find((x) => x.id === s.siteId));
   const [copied, setCopied] = useState<string | null>(null);
   const [now] = useState(() => new Date());
+  const datasets = useDatasets();
 
   // What the engine planned with: the crew's settings, tightened by space weather.
   const constraints = useMemo(() => effectiveConstraints(userConstraints, live.assessment), [userConstraints, live.assessment]);
@@ -187,13 +257,7 @@ export function Brief() {
         {/* 7. Datasets */}
         <section className="brief-section mt-3">
           <h2 className="brief-h2">Datasets used</h2>
-          <ul className="list-disc pl-5">
-            {[...(site?.credits ?? []), DONKI_CREDIT].map((c) => (
-              <li key={c.url + c.label}>
-                {c.label}: <span className="break-all">{c.url}</span>
-              </li>
-            ))}
-          </ul>
+          <DatasetList entries={datasets} />
         </section>
 
         {/* 8. What's estimated */}

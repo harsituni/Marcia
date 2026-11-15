@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { expectedAlerts, legRows, totals } from '../src/brief/brief.ts';
+import { DONKI_CREDIT, MODELLED, datasetsUsed, doiUrl, expectedAlerts, legRows, totals } from '../src/brief/brief.ts';
 import { estimates } from '../src/brief/estimates.ts';
 import { ShareError, decodeShare, encodeShare, parseHash, shareUrl } from '../src/brief/share.ts';
 import type { SharedPlan } from '../src/brief/share.ts';
@@ -184,5 +184,51 @@ describe('opening a share link', () => {
     const plan: SharedPlan = { ...PLAN, siteId: 'jezero', stops: [{ id: 'berea', cell: { x: 64, y: 238 } }, { id: 'x', cell: { x: 9999, y: 1 }, name: 'X' }], spaceWeather: null };
     await store().restoreShared(plan);
     expect(store().stops.map((s) => s.id)).toEqual(['berea']);
+  });
+});
+
+describe('datasets used (#81)', () => {
+  const dir = join(import.meta.dirname, '..', 'public', 'data');
+  const sites = JSON.parse(readFileSync(join(dir, 'sites.json'), 'utf8')) as { id: string; credits: { label: string; url: string }[] }[];
+  const jezero = sites.find((s) => s.id === 'jezero')!;
+  const gale = sites.find((s) => s.id === 'gale')!;
+  const geology = JSON.parse(readFileSync(join(dir, 'jezero', 'geology.json'), 'utf8')) as { source: string };
+  const crism = JSON.parse(readFileSync(join(dir, 'jezero', 'crism.json'), 'utf8')) as { source: string };
+
+  it('Jezero lists its credits, the Stack et al. (2020) geology map, CRISM (Parente et al. 2021) and DONKI', () => {
+    const list = datasetsUsed(jezero.credits, { geology, crism });
+    const urls = list.map((e) => e.url);
+    for (const c of jezero.credits) expect(urls).toContain(c.url);
+    expect(list.find((e) => e.label.startsWith('Geology layer'))?.url).toBe('https://doi.org/10.1007/s11214-020-00739-x');
+    const c = list.find((e) => e.label.startsWith('CRISM minerals layer'))!;
+    expect(c.label).toContain('Parente');
+    expect(c.url).toBe('https://doi.org/10.5281/zenodo.5575824');
+    expect(urls).toContain(DONKI_CREDIT.url);
+  });
+
+  it('Gale, with no geology or CRISM layer, lists neither', () => {
+    const labels = datasetsUsed(gale.credits).map((e) => e.label);
+    expect(labels.some((l) => l.startsWith('Geology layer') || l.startsWith('CRISM'))).toBe(false);
+  });
+
+  it('labels MEDA, RAD and the oxygen / speed constants as modelled estimates, with no source link', () => {
+    const modelled = datasetsUsed([]).filter((e) => e.modelled);
+    expect(modelled.map((e) => e.label).join(' ')).toMatch(/MEDA.*RAD.*speed.*oxygen/s);
+    for (const e of modelled) {
+      expect(e.label).toMatch(/modelled/i);
+      expect(e.url).toBeUndefined();
+    }
+    expect(modelled).toEqual(MODELLED);
+  });
+
+  it('every linked source already exists in the repo data (nothing invented)', () => {
+    const known = new Set([...sites.flatMap((s) => s.credits.map((c) => c.url)), doiUrl(geology.source), doiUrl(crism.source), DONKI_CREDIT.url]);
+    for (const e of datasetsUsed(jezero.credits, { geology, crism })) if (e.url) expect(known).toContain(e.url);
+  });
+
+  it('doiUrl reads doi: and https://doi.org/ forms', () => {
+    expect(doiUrl('Stack et al. (2020), doi:10.1007/s11214-020-00739-x')).toBe('https://doi.org/10.1007/s11214-020-00739-x');
+    expect(doiUrl('Zenodo. https://doi.org/10.5281/zenodo.5575824. Licensed CC BY 4.0.')).toBe('https://doi.org/10.5281/zenodo.5575824');
+    expect(doiUrl('no doi here')).toBeUndefined();
   });
 });

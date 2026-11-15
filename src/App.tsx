@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect } from 'react';
-import { Brief, BriefButton } from './brief/Brief.tsx';
+import { AboutButton, Brief, BriefButton } from './brief/Brief.tsx';
 import { parseHash } from './brief/share.ts';
 import { MapView } from './map/MapView.tsx';
 import { RoutePanel } from './plan/RoutePanel.tsx';
@@ -52,6 +52,7 @@ export function App() {
         <div className="flex items-center gap-3">
           <SpaceWeatherChip />
           <BriefButton />
+          <AboutButton />
           <ViewToggle />
           <div role="tablist" aria-label="Mode" className="flex rounded-md bg-white/5 p-0.5 text-sm">
             {MODES.map((m) => (
