@@ -13,14 +13,16 @@ const STYLE: Record<Alert['severity'], { bg: string; fg: string; shape: string; 
  * Walk-mode alert banner: the current `checkAlerts` result (critical above
  * warn), the Replan button, and what the last replan dropped.
  */
-export function AlertStack() {
-  const alerts = useAppStore((s) => s.alerts);
+export function AlertStack({ atHabitat = false }: { atHabitat?: boolean }) {
+  const storeAlerts = useAppStore((s) => s.alerts);
   const replanned = useAppStore((s) => s.replanned);
   const replanning = useAppStore((s) => s.replanning);
   const replanWalk = useAppStore((s) => s.replanWalk);
   const stops = useAppStore((s) => s.stops);
   const route = useAppStore((s) => s.route);
 
+  // At the habitat "Return to the habitat now" has nothing to say, and there is nothing to replan from.
+  const alerts = atHabitat ? storeAlerts.filter((a) => !(a.kind === 'space-weather' && a.severity === 'critical')) : storeAlerts;
   const canDrop = route.status === 'ready' && routeHasStops(route.result);
   // The oxygen alert says "Replan." when the route no longer fits: make the button stand out.
   const urged = canDrop && alerts.some((a) => a.severity === 'critical' && a.kind === 'oxygen');
@@ -62,17 +64,19 @@ export function AlertStack() {
           )}
         </p>
       )}
-      <button
-        type="button"
-        onClick={() => void replanWalk()}
-        disabled={replanning || !canDrop}
-        title={!canDrop ? 'No science stops left on this route to drop.' : undefined}
-        className={`rounded-lg border px-3 py-1.5 text-sm font-semibold shadow-lg backdrop-blur-sm disabled:opacity-60 ${
-          urged ? 'border-white bg-white text-regolith hover:bg-white/90' : 'border-white/15 bg-black/65 hover:bg-black/80'
-        }`}
-      >
-        {replanning ? 'Replanning…' : canDrop ? 'Replan from here' : 'Nothing left to drop'}
-      </button>
+      {!atHabitat && (
+        <button
+          type="button"
+          onClick={() => void replanWalk()}
+          disabled={replanning || !canDrop}
+          title={!canDrop ? 'No science stops left on this route to drop.' : undefined}
+          className={`rounded-lg border px-3 py-1.5 text-sm font-semibold shadow-lg backdrop-blur-sm disabled:opacity-60 ${
+            urged ? 'border-white bg-white text-regolith hover:bg-white/90' : 'border-white/15 bg-black/65 hover:bg-black/80'
+          }`}
+        >
+          {replanning ? 'Replanning…' : canDrop ? 'Replan from here' : 'Nothing left to drop'}
+        </button>
+      )}
     </div>
   );
 }
