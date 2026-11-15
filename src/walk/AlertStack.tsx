@@ -1,4 +1,6 @@
+import { START_ID } from '../contracts.ts';
 import type { Alert } from '../contracts.ts';
+import { routeHasStops } from '../engine/alerts.ts';
 import { useAppStore } from '../store.ts';
 
 /** Same Okabe-Ito pair as the gauges; each alert also carries a shape and a word. */
@@ -17,13 +19,15 @@ export function AlertStack() {
   const replanning = useAppStore((s) => s.replanning);
   const replanWalk = useAppStore((s) => s.replanWalk);
   const stops = useAppStore((s) => s.stops);
+  const route = useAppStore((s) => s.route);
 
+  const canDrop = route.status === 'ready' && routeHasStops(route.result);
   // The oxygen alert says "Replan." when the route no longer fits: make the button stand out.
-  const urged = alerts.some((a) => a.severity === 'critical' && a.kind === 'oxygen');
+  const urged = canDrop && alerts.some((a) => a.severity === 'critical' && a.kind === 'oxygen');
   const dropped = replanned ? stops.flatMap((s, i) => (replanned.droppedIds.includes(s.id) ? [`${i + 1}. ${s.name}`] : [])) : [];
 
   return (
-    <div className="pointer-events-auto mx-auto flex max-w-xl flex-col items-center gap-1.5">
+    <div className="pointer-events-auto mx-auto flex w-full max-w-xl flex-col items-center gap-1.5">
       <ul aria-label="Alerts" aria-live="assertive" className="flex w-full flex-col gap-1.5 empty:hidden">
         {alerts.map((a) => {
           const st = STYLE[a.severity];
@@ -51,20 +55,23 @@ export function AlertStack() {
             <>
               Dropped: <span className="font-semibold">{dropped.join(', ')}</span>
             </>
+          ) : route.status === 'ready' && route.result.legs.some((l) => l.toId !== START_ID) ? (
+            'Kept all remaining stops — route already fits.'
           ) : (
-            'All remaining stops kept.'
+            'Straight home from here.'
           )}
         </p>
       )}
       <button
         type="button"
         onClick={() => void replanWalk()}
-        disabled={replanning}
+        disabled={replanning || !canDrop}
+        title={!canDrop ? 'No science stops left on this route to drop.' : undefined}
         className={`rounded-lg border px-3 py-1.5 text-sm font-semibold shadow-lg backdrop-blur-sm disabled:opacity-60 ${
           urged ? 'border-white bg-white text-regolith hover:bg-white/90' : 'border-white/15 bg-black/65 hover:bg-black/80'
         }`}
       >
-        {replanning ? 'Replanning…' : 'Replan from here'}
+        {replanning ? 'Replanning…' : canDrop ? 'Replan from here' : 'Nothing left to drop'}
       </button>
     </div>
   );
