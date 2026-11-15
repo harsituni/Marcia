@@ -27,7 +27,10 @@ function DatasetList({ entries }: { entries: DatasetEntry[] }) {
             {c.label}
             {c.url && (
               <>
-                : <span className="break-all">{c.url}</span>
+                {' '}
+                <a href={c.url} target="_blank" rel="noreferrer" className="underline">
+                  link
+                </a>
               </>
             )}
           </li>

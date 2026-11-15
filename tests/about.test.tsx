@@ -51,3 +51,27 @@ describe('About / Data sources panel (#81)', () => {
     expect(host.querySelector('[aria-label="About and data sources"]')).toBeNull();
   });
 });
+
+describe('dataset links (#81 polish)', () => {
+  it('shows each source as its label plus a "link" anchor, never the raw URL', async () => {
+    await act(async () => root.render(<AboutButton />));
+    await act(async () => host.querySelector('button')!.click());
+    await act(async () => new Promise((r) => setTimeout(r, 0)));
+    const items = [...host.querySelectorAll('[aria-label="About and data sources"] li')];
+    const linked = items.filter((li) => li.querySelector('a'));
+    expect(linked.length).toBeGreaterThan(3);
+    for (const li of linked) {
+      const a = li.querySelector('a')!;
+      expect(a.textContent).toBe('link');
+      expect(a.getAttribute('href')).toMatch(/^https:\/\//);
+      // The URL is only in the anchor, not printed after the label.
+      expect(li.textContent!.endsWith(' link')).toBe(true);
+      expect(li.textContent).not.toContain(`: ${a.getAttribute('href')}`);
+    }
+    const geology = items.find((li) => li.textContent!.startsWith('Geology layer'))!.textContent!;
+    expect(geology.split('10.1007/s11214-020-00739-x')).toHaveLength(2); // the DOI appears once
+    const crism = items.find((li) => li.textContent!.startsWith('CRISM minerals layer'))!.textContent!;
+    expect(crism).not.toContain('4.0.:');
+    expect(crism).toMatch(/Licensed CC BY 4\.0\. link$/);
+  });
+});
