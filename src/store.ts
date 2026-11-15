@@ -16,6 +16,7 @@ import type { SharedPlan, SpaceWeatherSnapshot } from './brief/share.ts';
 import type { DonkiBundle, SpaceWeather } from './engine/spaceWeather.ts';
 import stormDemo from '../fixtures/donki/storm.json';
 import { clampConstraints } from './plan/constraints.ts';
+import type { Vision } from './map/colorblind.ts';
 import { positionAt } from './walk/hud.ts';
 import type { WalkState } from './walk/hud.ts';
 import { IDLE_REPLAY, RING_STEP_MIN, advance, walkAt } from './walk/replay.ts';
@@ -117,6 +118,9 @@ interface AppState {
 
   /** Which map overlays are switched on. */
   layers: Record<LayerId, boolean>;
+  /** M34: the crew's colour vision. Anything but normal swaps geology / CRISM to colour-blind-safe colours. */
+  colorVision: Vision;
+  setColorVision: (v: Vision) => void;
   toggleLayer: (id: LayerId) => void;
   /** Turn-back ring for the usable oxygen; fetched while the ring layer is on. */
   ring: RingResult | null;
@@ -362,6 +366,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   layers: { difficulty: false, sand: false, geology: false, crism: false, ring: false },
+  colorVision: 'normal',
+  setColorVision: (colorVision) => set({ colorVision }),
   toggleLayer: (id) => {
     const on = !get().layers[id];
     set({ layers: { ...get().layers, [id]: on } });

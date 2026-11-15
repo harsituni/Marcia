@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { MIN_DELTA_E, VISIONS, closestPair, deltaE, feColorMatrix, hexToLinear, simulate } from '../src/map/colorblind.ts';
+import { MIN_DELTA_E, SAFE_COLORS, VISIONS, closestPair, colorFor, deltaE, feColorMatrix, hexToLinear, recolorPixels, simulate } from '../src/map/colorblind.ts';
 import { COLORS } from '../src/map/overlays.ts';
 
 const json = (f: string) => JSON.parse(readFileSync(join(import.meta.dirname, '..', 'public', 'data', 'jezero', f), 'utf8'));
@@ -45,6 +45,29 @@ describe('M34: Plan-mode layer colours under a colour-blindness simulator', () =
     for (const vision of VISIONS)
       if (CLASHES[layer]!.includes(vision)) it.fails(`${layer}: known clash for ${vision} (original colours kept)`, () => check(colors, vision));
       else it(`${layer}: every pair stays apart for ${vision} (ΔE ≥ ${MIN_DELTA_E})`, () => check(colors, vision));
+});
+
+describe('M34: colour-blind-safe palettes used when a colour vision is chosen', () => {
+  for (const [layer, colors] of Object.entries(KNOWN_CLASHES)) {
+    it(`${layer}: every legend entry has a safe colour`, () => {
+      for (const c of colors) expect(SAFE_COLORS[c.name], c.name).toMatch(/^#[0-9a-f]{6}$/i);
+    });
+    for (const vision of VISIONS.filter((v) => v !== 'normal'))
+      it(`${layer}: safe colours stay apart for ${vision} (ΔE ≥ ${MIN_DELTA_E})`, () =>
+        check(colors.map((c) => ({ name: c.name, color: colorFor(c.name, c.color, vision) })), vision));
+  }
+
+  it('normal vision keeps the original colours', () => {
+    expect(colorFor('Carbonates', '#e9c46a', 'normal')).toBe('#e9c46a');
+    expect(colorFor('Carbonates', '#e9c46a', 'deuteranopia')).toBe(SAFE_COLORS.Carbonates);
+    expect(colorFor('Not a unit', '#123456', 'protanopia')).toBe('#123456');
+  });
+
+  it('recolorPixels swaps exact matches only and skips transparent pixels', () => {
+    const px = new Uint8ClampedArray([0xe9, 0xc4, 0x6a, 255, 0xe9, 0xc4, 0x6a, 0, 1, 2, 3, 255]);
+    recolorPixels(px, [{ from: '#e9c46a', to: '#DDCC77' }]);
+    expect([...px]).toEqual([0xdd, 0xcc, 0x77, 255, 0xe9, 0xc4, 0x6a, 0, 1, 2, 3, 255]);
+  });
 });
 
 describe('simulator', () => {

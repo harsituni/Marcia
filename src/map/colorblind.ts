@@ -72,3 +72,54 @@ export function closestPair(colors: readonly { name: string; color: string }[], 
 export function feColorMatrix(vision: Exclude<Vision, 'normal'>): string {
   return CVD_MATRICES[vision].map((row) => `${row.join(' ')} 0 0`).join(' ') + ' 0 0 0 1 0';
 }
+
+/**
+ * Colour-blind-safe replacements, used when the crew picks a colour-vision type
+ * other than normal. Paul Tol's "muted" qualitative scheme
+ * (https://personal.sron.nl/~pault/), keyed by geology unit / CRISM category
+ * name. tests/colorblind.test.ts checks every layer stays apart (ΔE ≥ 15)
+ * under every vision type with these colours.
+ */
+export const SAFE_COLORS: Readonly<Record<string, string>> = {
+  // Geology (Stack et al. 2020 units on the Jezero grid)
+  'Crater floor fractured 1': '#332288',
+  'Crater floor fractured 2': '#AA4499',
+  'Delta blocky': '#117733',
+  'Delta thinly layered': '#44AA99',
+  'Delta truncated curvilinear layered': '#88CCEE',
+  'Undifferentiated smooth': '#DDDDDD',
+  'Moderate Cover Us': '#882255',
+  Talus: '#999933',
+  'Aeolian bedforms, large': '#DDCC77',
+  'Aeolian bedforms, small': '#CC6677',
+  // CRISM mineral categories
+  'Olivine and olivine mixtures': '#117733',
+  Carbonates: '#DDCC77',
+  Smectites: '#88CCEE',
+  Pyroxenes: '#CC6677',
+  Kaolinite: '#AA4499',
+};
+
+/** The colour to draw a legend entry with for `vision`: the original for normal vision, else its safe replacement. */
+export function colorFor(name: string, original: string, vision: Vision): string {
+  return vision === 'normal' ? original : (SAFE_COLORS[name] ?? original);
+}
+
+const rgbKey = (r: number, g: number, b: number) => (r << 16) | (g << 8) | b;
+
+/**
+ * Swaps colours in RGBA pixel data in place: every opaque-ish pixel whose RGB
+ * exactly matches an entry's `from` becomes its `to`; others are left alone.
+ */
+export function recolorPixels(data: Uint8ClampedArray, swaps: readonly { from: string; to: string }[]): void {
+  const map = new Map<number, number>();
+  for (const s of swaps) map.set(parseInt(s.from.replace('#', ''), 16), parseInt(s.to.replace('#', ''), 16));
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] === 0) continue;
+    const to = map.get(rgbKey(data[i]!, data[i + 1]!, data[i + 2]!));
+    if (to === undefined) continue;
+    data[i] = (to >> 16) & 255;
+    data[i + 1] = (to >> 8) & 255;
+    data[i + 2] = to & 255;
+  }
+}
