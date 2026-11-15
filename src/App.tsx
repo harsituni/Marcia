@@ -43,8 +43,9 @@ export function App() {
     <div className="flex h-full flex-col">
       <header className="flex items-center justify-between gap-4 border-b border-white/10 px-4 py-2">
         <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
-          <h1 className="text-lg font-semibold tracking-wide">
-            <span className="text-mars">●</span> Marcia
+          <h1 className="flex items-center gap-2 text-lg font-semibold tracking-wide">
+            <img src="/marcia-logo.svg" alt="" aria-hidden="true" className="size-7" />
+            Marcia
           </h1>
           <SiteSwitcher />
         </div>
