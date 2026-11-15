@@ -4,6 +4,12 @@
     "name": "Jezero Crater western delta",
     "description": "3x3 km EVA site spanning the western delta top, the delta front scarp and the crater floor at its base. Habitat sits on flat crater floor near the delta base.",
     "slopeOnly": false,
+    "bounds": {
+      "minLon": 77.37832,
+      "maxLon": 77.43168,
+      "minLat": 18.43969,
+      "maxLat": 18.49031
+    },
     "credits": [
       {
         "label": "HiRISE DTM: USGS Mars 2020 TRN Jezero mosaic (1 m)",
@@ -32,6 +38,12 @@
     "name": "Gale Crater, Mount Sharp boxwork",
     "description": "3x3 km EVA site on the lower slopes of Mount Sharp (Aeolis Mons) around Curiosity's 2025-2026 boxwork traverse: layered sulfate bedrock cut by ridge-and-hollow boxwork. Slope-only cost: no thermal inertia or mapped sand exists for this box.",
     "slopeOnly": true,
+    "bounds": {
+      "minLon": 137.3496,
+      "maxLon": 137.4004,
+      "minLat": -4.83731,
+      "maxLat": -4.78669
+    },
     "credits": [
       {
         "label": "HiRISE DTM DTEEC_019698_1750_019988_1750_U01 (NASA/JPL/UArizona)",

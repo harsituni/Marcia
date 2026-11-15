@@ -58,17 +58,26 @@ describe('public/data/sites.json', () => {
     expect(sites).toEqual(sitesIndex(ROOT));
   });
 
-  it('lists Jezero first, then Gale as slope-only, each with data credits', () => {
+  it('lists Jezero first, then Gale as slope-only, each with data credits and lon/lat bounds', () => {
     expect(sites.map((s) => s.id)).toEqual(['jezero', 'gale']);
     expect(sites.map((s) => s.slopeOnly)).toEqual([false, true]);
-    for (const s of sites) expect(s.credits.length).toBeGreaterThan(0);
+    for (const s of sites) {
+      expect(s.credits.length).toBeGreaterThan(0);
+      expect(s.bounds.maxLon).toBeGreaterThan(s.bounds.minLon);
+      expect(s.bounds.maxLat).toBeGreaterThan(s.bounds.minLat);
+    }
   });
 
   it('rejects a broken index', () => {
+    const bounds = { minLon: 0, maxLon: 1, minLat: 0, maxLat: 1 };
     expect(() => parseSites({})).toThrow();
     expect(() => parseSites([])).toThrow();
-    expect(() => parseSites([{ id: 'a', name: 'A' }, { id: 'a', name: 'B' }])).toThrow(/duplicate/);
-    expect(() => parseSites([{ id: 'Bad Id', name: 'x' }])).toThrow(/bad id/);
+    expect(() => parseSites([
+      { id: 'a', name: 'A', bounds },
+      { id: 'a', name: 'B', bounds },
+    ])).toThrow(/duplicate/);
+    expect(() => parseSites([{ id: 'Bad Id', name: 'x', bounds }])).toThrow(/bad id/);
+    expect(() => parseSites([{ id: 'a', name: 'A' }])).toThrow(/bounds/);
     expect(siteDataUrl('/Marcia/data/', 'gale')).toBe('/Marcia/data/gale');
   });
 });

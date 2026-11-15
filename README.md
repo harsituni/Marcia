@@ -34,6 +34,7 @@ Set up in M02:
 | CRISM minerals + USGS geology | Science layers *(stretch)* | M30 |
 | MEDA weather + RAD radiation | Conditions and dose *(stretch)* | M31 |
 | NASA DONKI space weather | Block or tighten the EVA during solar storms | M35 |
+| CesiumJS 3D terrain | Optional perspective view of the EVA site | M33 |
 
 ### Space weather key
 

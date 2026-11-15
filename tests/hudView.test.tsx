@@ -48,11 +48,30 @@ describe('Hud', () => {
     expect(label('Compass: heading')).toBeDefined();
     expect(label('Oxygen:')).toBe('Oxygen: 480 of 480 minutes left, OK');
     expect(label('Return margin:')).toBe('Return margin: 384 minutes spare, OK');
+    expect(label('Weather MEDA:')).toMatch(/^Weather MEDA:/);
+    expect(label('Radiation RAD:')).toMatch(/^Radiation RAD:/);
     expect(label('Mini-map')).toBeDefined();
     expect(label('Next stop:')).toMatch(/^Next stop: Layered Outcrop, \d+ m away$/);
     // Mini-map draws every stop and the route.
     expect(host.querySelectorAll('svg circle[fill="#c1440e"]')).toHaveLength(4);
     expect(host.querySelectorAll('polyline')).toHaveLength(2);
+  });
+
+  it('raises the RAD gauge when space weather blocks the EVA', async () => {
+    await store().loadData('/fixtures');
+    useAppStore.setState({
+      spaceWeather: {
+        ...store().spaceWeather,
+        assessment: {
+          status: 'block',
+          reasons: [{ status: 'block', text: 'demo SEP', eventId: 'x' }],
+          missing: [],
+          fetchedAt: new Date().toISOString(),
+        },
+      },
+    });
+    await act(async () => root.render(<Hud />));
+    expect(label('Radiation RAD:')).toMatch(/HIGH$/);
   });
 
   it('follows the walk state: next stop advances and the gauges drop', async () => {
