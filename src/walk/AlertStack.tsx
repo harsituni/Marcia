@@ -19,7 +19,6 @@ export function AlertStack({ atHabitat = false }: { atHabitat?: boolean }) {
   const replanning = useAppStore((s) => s.replanning);
   const replanWalk = useAppStore((s) => s.replanWalk);
   const headHome = useAppStore((s) => s.headHome);
-  const severe = useAppStore((s) => s.spaceWeather.assessment?.status === 'block');
   const stops = useAppStore((s) => s.stops);
   const route = useAppStore((s) => s.route);
 
@@ -28,6 +27,8 @@ export function AlertStack({ atHabitat = false }: { atHabitat?: boolean }) {
   const canDrop = route.status === 'ready' && routeHasStops(route.result);
   // The oxygen alert says "Replan." when the route no longer fits: make the button stand out.
   const urged = canDrop && alerts.some((a) => a.severity === 'critical' && a.kind === 'oxygen');
+  // Head home now is for danger only: any red alert (severe storm, oxygen critical, far off route, over the slope limit).
+  const danger = alerts.some((a) => a.severity === 'critical');
   const dropped = replanned ? stops.flatMap((s, i) => (replanned.droppedIds.includes(s.id) ? [`${i + 1}. ${s.name}`] : [])) : [];
 
   return (
@@ -66,14 +67,12 @@ export function AlertStack({ atHabitat = false }: { atHabitat?: boolean }) {
           )}
         </p>
       )}
-      {!atHabitat && (
+      {!atHabitat && danger && (
         <button
           type="button"
           onClick={() => void headHome()}
           disabled={replanning}
-          className={`rounded-lg border px-3 py-1.5 text-sm font-semibold shadow-lg backdrop-blur-sm disabled:opacity-60 ${
-            severe ? 'border-white bg-white text-regolith hover:bg-white/90' : 'border-white/15 bg-black/65 hover:bg-black/80'
-          }`}
+          className="rounded-lg border border-white bg-white px-3 py-1.5 text-sm font-semibold text-regolith shadow-lg backdrop-blur-sm hover:bg-white/90 disabled:opacity-60"
         >
           Head home now
         </button>

@@ -287,12 +287,21 @@ describe('HUD banner', () => {
     expect(items().filter((li) => li.textContent!.includes('short for this route'))).toEqual([]);
   });
 
-  it('Head home now: hidden at the habitat, disabled while replanning, and the note says heading straight home', async () => {
+  it('Head home now: only on a red alert away from the habitat, disabled while replanning, and the note says heading straight home', async () => {
     await start(480, 20);
     await act(async () => root.render(<Hud />));
     const btn = () => [...host.querySelectorAll('button')].find((b) => b.textContent === 'Head home now');
+    const critical = { kind: 'space-weather' as const, severity: 'critical' as const, message: 'Space weather: storm. Return to the habitat now.' };
+    await act(async () => useAppStore.setState({ alerts: [critical] }));
     expect(btn()).toBeUndefined(); // standing on the habitat
-    await act(async () => store().setWalk({ pathIdx: 1, oxygenLeftMin: 400 }));
+    await act(async () => {
+      store().setWalk({ pathIdx: 1, oxygenLeftMin: 400 });
+      useAppStore.setState({ alerts: [] });
+    });
+    expect(btn()).toBeUndefined(); // away, but no danger
+    await act(async () => useAppStore.setState({ alerts: [{ kind: 'slope', severity: 'warn', message: 'Slope near your limit.' }] }));
+    expect(btn()).toBeUndefined(); // a caution is not danger
+    await act(async () => useAppStore.setState({ alerts: [critical] }));
     expect(btn()!.disabled).toBe(false);
     await act(async () => useAppStore.setState({ replanning: true }));
     expect(btn()!.disabled).toBe(true);
