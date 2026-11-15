@@ -11,7 +11,7 @@ import { checkAlerts } from './engine/alerts.ts';
 import { createWorkerEngine } from './engine/client.ts';
 import type { EngineClient } from './engine/client.ts';
 import { usableOxygenMin } from './engine/model.ts';
-import { assessSpaceWeather, effectiveConstraints, eventIds, hasNoData, noDataText, ringOxygenFor, spaceWeatherAlert } from './engine/spaceWeather.ts';
+import { assessSpaceWeather, effectiveConstraints, eventIds, hasNoData, noDataText, ringOxygenFor, spaceWeatherAlert, spaceWeatherHeadline } from './engine/spaceWeather.ts';
 import type { SharedPlan, SpaceWeatherSnapshot } from './brief/share.ts';
 import type { DonkiBundle, SpaceWeather } from './engine/spaceWeather.ts';
 import stormDemo from '../fixtures/donki/storm.json';
@@ -595,6 +595,22 @@ export function sharePlanFrom(s: AppState, app: string, createdAt: Date): Shared
     app,
     createdAt: createdAt.toISOString(),
   };
+}
+
+/**
+ * Reasons not to start a walk now (#89): space weather blocks the EVA, or a stop is out of range
+ * on the ready route. Empty when the walk can start without a warning.
+ */
+export function walkWarnings(s: Pick<AppState, 'spaceWeather' | 'route' | 'stops'>): string[] {
+  const reasons: string[] = [];
+  const sw = s.spaceWeather.assessment;
+  if (sw?.status === 'block') reasons.push(spaceWeatherHeadline(sw));
+  if (s.route.status === 'ready') {
+    for (const id of s.route.result.outOfRangeIds) {
+      reasons.push(`${s.stops.find((x) => x.id === id)?.name ?? id} is out of range`);
+    }
+  }
+  return reasons;
 }
 
 /** Re-runs the space-weather rules and, if the status changed, follows it through the route, ring and alerts. */
