@@ -9,7 +9,7 @@ export interface WorkerLike {
   terminate?(): void;
 }
 
-type Pending = { expect: 'route' | 'ring'; resolve: (v: never) => void; reject: (e: Error) => void };
+type Pending = { expect: 'route' | 'ring' | 'order'; resolve: (v: never) => void; reject: (e: Error) => void };
 
 /**
  * Promise wrapper over the worker message contract.
@@ -48,6 +48,11 @@ export class EngineClient {
     return this.send({ type: 'replan', from, stops, constraints, oxygenLeftMin }, 'route');
   }
 
+  /** #99: stop ids in the order with the shortest out-and-back walk from the habitat. */
+  order(stops: Stop[], maxSlopeDeg: number): Promise<string[]> {
+    return this.send({ type: 'order', stops, maxSlopeDeg }, 'order');
+  }
+
   terminate(): void {
     this.worker.terminate?.();
     for (const p of this.queue.splice(0)) p.reject(new Error('engine terminated'));
@@ -68,7 +73,7 @@ export class EngineClient {
     }
     if (msg.type === 'error') p.reject(new Error(msg.message));
     else if (msg.type !== p.expect) p.reject(new Error(`engine replied '${msg.type}', expected '${p.expect}'`));
-    else p.resolve(msg.result as never);
+    else p.resolve((msg.type === 'order' ? msg.ids : msg.result) as never);
   }
 }
 

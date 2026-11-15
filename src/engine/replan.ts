@@ -132,3 +132,104 @@ export function replanRoute(engine: AStar, req: ReplanRequest, meta: GridMeta): 
     outOfRangeIds,
   };
 }
+
+/** Walking metres for habitat → `order` → habitat, using the lookup `d` (index 0 is the habitat, stop i is i + 1). */
+function tourLength(d: number[][], order: number[]): number {
+  let total = 0;
+  let at = 0;
+  for (const i of order) {
+    total += d[at]![i + 1]!;
+    at = i + 1;
+  }
+  return total + d[at]![0]!;
+}
+
+/** Stop counts up to this are searched exhaustively; above it, nearest neighbour + 2-opt. */
+export const EXACT_ORDER_MAX_STOPS = 8;
+
+/**
+ * Visiting order of `stops` (ids) with the shortest out-and-back walk
+ * habitat → stops → habitat, by A* walking metres (so the slope limit and
+ * avoid zones in `engine` apply). Stops with no walkable path from the
+ * habitat keep their relative order and go last. Up to
+ * `EXACT_ORDER_MAX_STOPS` reachable stops the search is exhaustive; above
+ * that it is nearest neighbour followed by 2-opt. The result is never longer
+ * than the given order: if nothing beats it, the reachable stops stay in
+ * their given order.
+ */
+export function bestStopOrder(engine: AStar, stops: Stop[], meta: GridMeta): string[] {
+  const reachable = stops.filter((s) => engine.findPath(meta.habitat, s.cell) !== null);
+  const unreachable = stops.filter((s) => !reachable.includes(s));
+  const tail = unreachable.map((s) => s.id);
+  const n = reachable.length;
+  if (n < 2) return [...reachable.map((s) => s.id), ...tail];
+
+  const points = [meta.habitat, ...reachable.map((s) => s.cell)];
+  const d: number[][] = points.map(() => points.map(() => 0));
+  for (let i = 0; i < points.length; i++) {
+    for (let j = i + 1; j < points.length; j++) {
+      const found = engine.findPath(points[i]!, points[j]!);
+      d[i]![j] = d[j]![i] = found ? pathLengthM(found.path, meta.cellSizeM) : Infinity;
+    }
+  }
+
+  const given = reachable.map((_, i) => i);
+  let best = given;
+  let bestLen = tourLength(d, given);
+
+  if (n <= EXACT_ORDER_MAX_STOPS) {
+    const cur: number[] = [];
+    const used = new Array<boolean>(n).fill(false);
+    const search = (at: number, len: number): void => {
+      if (len >= bestLen - 1e-9) return;
+      if (cur.length === n) {
+        const total = len + d[at]![0]!;
+        if (total < bestLen - 1e-9) {
+          bestLen = total;
+          best = [...cur];
+        }
+        return;
+      }
+      for (let i = 0; i < n; i++) {
+        if (used[i]) continue;
+        used[i] = true;
+        cur.push(i);
+        search(i + 1, len + d[at]![i + 1]!);
+        cur.pop();
+        used[i] = false;
+      }
+    };
+    search(0, 0);
+  } else {
+    // Nearest neighbour from the habitat, then 2-opt until no reversal helps.
+    const left = new Set(given);
+    const tour: number[] = [];
+    let at = 0;
+    while (left.size) {
+      let next = -1;
+      for (const i of left) if (next < 0 || d[at]![i + 1]! < d[at]![next + 1]!) next = i;
+      left.delete(next);
+      tour.push(next);
+      at = next + 1;
+    }
+    let improved = true;
+    while (improved) {
+      improved = false;
+      for (let i = 0; i < n - 1; i++) {
+        for (let j = i + 1; j < n; j++) {
+          const cand = [...tour.slice(0, i), ...tour.slice(i, j + 1).reverse(), ...tour.slice(j + 1)];
+          if (tourLength(d, cand) < tourLength(d, tour) - 1e-9) {
+            tour.splice(0, n, ...cand);
+            improved = true;
+          }
+        }
+      }
+    }
+    const len = tourLength(d, tour);
+    if (len < bestLen - 1e-9) {
+      best = tour;
+      bestLen = len;
+    }
+  }
+  return [...best.map((i) => reachable[i]!.id), ...tail];
+}

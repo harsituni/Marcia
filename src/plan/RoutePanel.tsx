@@ -4,7 +4,7 @@ import type { RouteResult, Stop } from '../contracts.ts';
 import type { GridData } from '../data/grid.ts';
 import { usableOxygenMin } from '../engine/model.ts';
 import { effectiveConstraints, spaceWeatherHeadline } from '../engine/spaceWeather.ts';
-import { useAppStore } from '../store.ts';
+import { sameStops, useAppStore } from '../store.ts';
 import { elevationProfile, formatDistance, formatDuration, indexAtDistance } from './profile.ts';
 import type { ElevationProfile } from './profile.ts';
 
@@ -16,11 +16,19 @@ export function RoutePanel() {
   const spaceWeather = useAppStore((s) => s.spaceWeather.assessment);
   // Space weather can raise the reserve; the stats show what the engine planned with.
   const constraints = effectiveConstraints(useAppStore((s) => s.constraints), spaceWeather);
+  const mode = useAppStore((s) => s.mode);
+  const drawingZone = useAppStore((s) => s.drawingZone);
+  const ordering = useAppStore((s) => s.ordering);
+  const orderUndo = useAppStore((s) => s.orderUndo);
+  const bestOrder = useAppStore((s) => s.bestOrder);
+  const undoOrder = useAppStore((s) => s.undoOrder);
   const [open, setOpen] = useState(true);
   const bodyId = useId();
 
   if (route.status !== 'ready' || data.status !== 'ready') return null;
   const usable = usableOxygenMin(constraints.oxygenMin, constraints.reservePct);
+  const canOrder = mode === 'plan' && !drawingZone && !ordering && stops.length >= 3;
+  const canUndo = mode === 'plan' && !ordering && !!orderUndo && sameStops(stops, orderUndo.after);
 
   return (
     <section
@@ -54,6 +62,22 @@ export function RoutePanel() {
       {open && (
         <div id={bodyId} className="space-y-3 border-t border-white/10 px-3 pt-2 pb-3">
           <Stats result={route.result} usable={usable} stops={stops} />
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={!canOrder}
+              onClick={() => void bestOrder()}
+              title={stops.length < 3 ? 'Needs at least 3 stops' : 'Reorder the stops into the shortest walk from the habitat and back'}
+              className="rounded border border-white/30 px-2 py-1 text-xs font-semibold enabled:hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {ordering ? 'Finding…' : 'Find best order'}
+            </button>
+            {canUndo && (
+              <button type="button" onClick={undoOrder} className="rounded border border-white/30 px-2 py-1 text-xs font-semibold hover:bg-white/10">
+                Undo
+              </button>
+            )}
+          </div>
           <Profile result={route.result} grid={data.grid} stops={stops} />
         </div>
       )}
