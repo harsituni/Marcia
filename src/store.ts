@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { START_ID } from './contracts.ts';
 import type { Alert, Cell, Constraints, RingResult, RouteResult, Stop } from './contracts.ts';
+import { browserStorage, checkDonki } from './data/donki.ts';
+import type { DonkiCheck } from './data/donki.ts';
 import { loadGrid } from './data/grid.ts';
 import { DEFAULT_SITE_ID, FALLBACK_SITES, SITES_FILE, parseSites, siteDataUrl } from './data/sites.ts';
 import type { SiteInfo } from './data/sites.ts';
@@ -9,6 +11,9 @@ import { checkAlerts } from './engine/alerts.ts';
 import { createWorkerEngine } from './engine/client.ts';
 import type { EngineClient } from './engine/client.ts';
 import { usableOxygenMin } from './engine/model.ts';
+import { assessSpaceWeather, effectiveConstraints, ringOxygenFor, spaceWeatherAlert } from './engine/spaceWeather.ts';
+import type { DonkiBundle, SpaceWeather } from './engine/spaceWeather.ts';
+import stormDemo from '../fixtures/donki/storm.json';
 import { clampConstraints } from './plan/constraints.ts';
 import { positionAt } from './walk/hud.ts';
 import type { WalkState } from './walk/hud.ts';
@@ -42,6 +47,22 @@ export interface Replanned {
   /** EVA minutes walked before the replanned route starts. */
   offsetMin: number;
 }
+
+/** Space-weather check (M35): the DONKI data and what the rules make of it. */
+export interface SpaceWeatherState {
+  /** Rules applied to the current check (or the demo storm); null until the first check lands. */
+  assessment: SpaceWeather | null;
+  /** True when the live fetch failed and this is the last good check. */
+  stale: boolean;
+  loading: boolean;
+  /** Last fetch error, shown when there is no check at all or it's stale. */
+  error: string | null;
+  /** "Demo: replay a historical storm" is on. */
+  demo: boolean;
+}
+
+/** Saved DONKI responses for a real past storm; judged at its own `fetchedAt`. */
+export const STORM_DEMO = stormDemo as DonkiBundle;
 
 export type RouteState =
   | { status: 'idle' }
@@ -125,8 +146,17 @@ interface AppState {
    */
   replanWalk: () => Promise<void>;
 
+  spaceWeather: SpaceWeatherState;
+  /** Checks DONKI (cached for 15 min unless `force`) and reroutes if the status changed. */
+  checkSpaceWeather: (force?: boolean) => Promise<void>;
+  /** Switches the historical-storm demo on or off. */
+  setSpaceWeatherDemo: (on: boolean) => void;
+
   /** Engine factory; tests swap in a fake worker. */
   makeEngine: () => EngineClient;
+  /** DONKI fetch and clock; tests swap them out. */
+  fetchDonki: (url: string) => Promise<Response>;
+  now: () => Date;
 }
 
 let engine: EngineClient | null = null;
@@ -137,6 +167,7 @@ let ringSeq = 0;
 let ringOxygen: number | null = null;
 let ringBusy = false;
 let replanSeq = 0;
+let liveCheck: DonkiCheck | null = null;
 
 /** Returns the engine, initialised with `grid` (once per grid). */
 function engineFor(grid: GridData, make: () => EngineClient): EngineClient {
@@ -295,7 +326,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const seq = ++planSeq;
     set({ route: { status: 'planning' } });
     try {
-      const result = await engineFor(grid, get().makeEngine).route({ start: grid.meta.habitat, stops: get().stops, constraints: get().constraints });
+      const result = await engineFor(grid, get().makeEngine).route({ start: grid.meta.habitat, stops: get().stops, constraints: planConstraints(get()) });
       // A new route starts a new walk: the old position indexed the old path.
       if (seq === planSeq) {
         replanSeq++; // a replan still in flight is for the old route
@@ -395,7 +426,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const seq = ++replanSeq;
     set({ replanning: true });
     try {
-      const result = await engineFor(grid, get().makeEngine).replan(from, ahead, get().constraints, walk.oxygenLeftMin);
+      const result = await engineFor(grid, get().makeEngine).replan(from, ahead, planConstraints(get()), walk.oxygenLeftMin);
       if (seq !== replanSeq) return;
       if (result.path.length < 2) {
         const atHome = from.x === grid.meta.habitat.x && from.y === grid.meta.habitat.y;
@@ -425,14 +456,58 @@ export const useAppStore = create<AppState>()((set, get) => ({
     }
   },
 
+  spaceWeather: { assessment: null, stale: false, loading: false, error: null, demo: false },
+  checkSpaceWeather: async (force = false) => {
+    const sw = get().spaceWeather;
+    if (sw.loading) return;
+    set({ spaceWeather: { ...sw, loading: true } });
+    try {
+      liveCheck = await checkDonki({ now: get().now(), fetch: get().fetchDonki, storage: browserStorage(), force });
+      set({ spaceWeather: { ...get().spaceWeather, loading: false, stale: liveCheck.stale, error: liveCheck.error ?? null } });
+    } catch (err) {
+      set({ spaceWeather: { ...get().spaceWeather, loading: false, error: errorMessage(err) } });
+    }
+    applySpaceWeather();
+  },
+  setSpaceWeatherDemo: (on) => {
+    set({ spaceWeather: { ...get().spaceWeather, demo: on } });
+    applySpaceWeather();
+  },
+
   makeEngine: createWorkerEngine,
+  fetchDonki: (url) => fetch(url),
+  now: () => new Date(),
 }));
+
+/** Re-runs the space-weather rules and, if the status changed, follows it through the route, ring and alerts. */
+function applySpaceWeather(): void {
+  const s = useAppStore.getState();
+  const bundle = s.spaceWeather.demo ? STORM_DEMO : liveCheck?.bundle;
+  const assessment = bundle ? assessSpaceWeather(bundle, s.spaceWeather.demo ? new Date(STORM_DEMO.fetchedAt) : s.now()) : null;
+  const before = s.spaceWeather.assessment;
+  useAppStore.setState({ spaceWeather: { ...s.spaceWeather, assessment } });
+  if ((before?.status ?? 'clear') === (assessment?.status ?? 'clear')) {
+    refreshAlerts(); // the reason text may have changed
+    return;
+  }
+  // Tightening changes the reserve: Plan mode reroutes; Walk keeps its route but updates the ring and alerts.
+  if (s.mode === 'plan') void s.planRoute();
+  else {
+    refreshAlerts();
+    void s.planRing();
+  }
+}
+
+/** Constraints sent to the engine: the crew's settings, tightened by space weather. */
+export function planConstraints(s: Pick<AppState, 'constraints' | 'spaceWeather'>): Constraints {
+  return effectiveConstraints(s.constraints, s.spaceWeather.assessment);
+}
 
 /** Usable oxygen the ring should be drawn for: right now in Walk mode, as planned otherwise. */
 function ringOxygenNow(s: AppState): number {
-  const { oxygenMin, reservePct } = s.constraints;
-  if (s.mode !== 'walk' || !s.walk) return usableOxygenMin(oxygenMin, reservePct);
-  return Math.max(0, s.walk.oxygenLeftMin - (oxygenMin * reservePct) / 100);
+  const { oxygenMin, reservePct } = planConstraints(s);
+  const usable = s.mode !== 'walk' || !s.walk ? usableOxygenMin(oxygenMin, reservePct) : Math.max(0, s.walk.oxygenLeftMin - (oxygenMin * reservePct) / 100);
+  return ringOxygenFor(usable, s.spaceWeather.assessment);
 }
 
 /** Oxygen in the tank at the start of the route being walked. */
@@ -449,7 +524,10 @@ function refreshAlerts(): void {
   }
   const route = s.route.result;
   const walk = s.walk ?? { pathIdx: 0, oxygenLeftMin: startOxygen(s) };
-  const alerts = checkAlerts(positionAt(route.path, walk.pathIdx), route, s.constraints, walk.oxygenLeftMin, s.data.grid);
+  const sw = spaceWeatherAlert(s.spaceWeather.assessment);
+  const found = checkAlerts(positionAt(route.path, walk.pathIdx), route, planConstraints(s), walk.oxygenLeftMin, s.data.grid);
+  // Critical first, as checkAlerts orders them; space weather leads its own severity group.
+  const alerts = sw ? [sw, ...found].sort((a, b) => Number(b.severity === 'critical') - Number(a.severity === 'critical')) : found;
   // Keep the same array while nothing changed, so the banner doesn't re-render every frame.
   const same = alerts.length === s.alerts.length && alerts.every((a, i) => a.kind === s.alerts[i]!.kind && a.severity === s.alerts[i]!.severity && a.message === s.alerts[i]!.message);
   if (!same) useAppStore.setState({ alerts });
@@ -472,6 +550,7 @@ function moveWalk(replay: Replay, forceRing = false): void {
 export function resetEngine(): void {
   ringOxygen = null;
   ringBusy = false;
+  liveCheck = null;
   replanSeq++;
   clearTimeout(replanTimer);
   engine?.terminate();

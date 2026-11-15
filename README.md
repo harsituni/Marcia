@@ -32,6 +32,14 @@ Set up in M02:
 | THEMIS thermal inertia | Sand mask (soft ground to avoid) | M12 |
 | CRISM minerals + USGS geology | Science layers *(stretch)* | M30 |
 | MEDA weather + RAD radiation | Conditions and dose *(stretch)* | M31 |
+| NASA DONKI space weather | Block or tighten the EVA during solar storms | M35 |
+
+### Space weather key
+
+M35 reads NASA DONKI through `api.nasa.gov`. Set `VITE_NASA_API_KEY` (CI
+passes the `NASA_API_KEY` repo secret); without it the app uses `DEMO_KEY`,
+which allows only a few requests an hour. The key is compiled into the client
+bundle, so anyone can read it. That is acceptable for a free NASA key.
 
 ### Runtime grid files
 

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { MapView } from './map/MapView.tsx';
 import { RoutePanel } from './plan/RoutePanel.tsx';
+import { SpaceWeatherChip } from './SpaceWeatherChip.tsx';
 import { SettingsPanel } from './plan/SettingsPanel.tsx';
 import { StopCard } from './plan/StopCard.tsx';
 import { SiteSwitcher } from './SiteSwitcher.tsx';
@@ -31,6 +32,8 @@ export function App() {
           </h1>
           <SiteSwitcher />
         </div>
+        <div className="flex items-center gap-3">
+        <SpaceWeatherChip />
         <div role="tablist" aria-label="Mode" className="flex rounded-md bg-white/5 p-0.5 text-sm">
           {MODES.map((m) => (
             <button
@@ -45,6 +48,7 @@ export function App() {
               {m.label}
             </button>
           ))}
+        </div>
         </div>
       </header>
       <main className="flex min-h-0 flex-1 flex-col">
