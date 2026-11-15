@@ -1,9 +1,9 @@
 /**
  * M09: slope in degrees on the same grid as the clipped DEM.
  *
- *   data/raw/elev_5m.tif  →  data/raw/slope_5m.tif  (Float32 GeoTIFF, degrees)
+ *   data/raw/<id>/elev_5m.tif  →  data/raw/<id>/slope_5m.tif  (Float32 GeoTIFF, degrees)
  *
- * Run with `npm run compute:slope` after `npm run fetch:clip`. The raster is
+ * Run with `npm run compute:slope -- --site <id>` (default jezero, M36) after `npm run fetch:clip`. The raster is
  * made by `gdaldem slope -compute_edges`; the grid is eqc in metres, so no
  * `-s` scale is needed. Afterwards the script checks that size, geotransform
  * and CRS match elev_5m.tif exactly and that no cell is nodata.
@@ -16,6 +16,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findGdal, runOk } from './fetch-clip.ts';
 import type { Gdal } from './fetch-clip.ts';
+import { siteFromArgv } from './site.ts';
 
 /**
  * Slope in degrees with Horn's 3×3 method, matching `gdaldem slope
@@ -76,11 +77,6 @@ export function hornSlopeDeg(elev: Float32Array, width: number, height: number, 
 
 // ---------------------------------------------------------------- CLI
 
-const ROOT = resolve(import.meta.dirname, '..');
-const RAW_DIR = join(ROOT, 'data', 'raw');
-const ELEV = join(RAW_DIR, 'elev_5m.tif');
-const SLOPE = join(RAW_DIR, 'slope_5m.tif');
-
 function fail(msg: string): never {
   console.error(`ERROR: ${msg}`);
   process.exit(1);
@@ -105,6 +101,9 @@ async function statsInfo(gdal: Gdal, path: string): Promise<StatsInfo> {
 }
 
 async function main(): Promise<void> {
+  const { paths } = siteFromArgv();
+  const ELEV = join(paths.rawDir, 'elev_5m.tif');
+  const SLOPE = join(paths.rawDir, 'slope_5m.tif');
   console.log('==> Checking tools');
   const gdal = findGdal();
   console.log((await runOk(gdal, 'gdalinfo', ['--version'])).trim());

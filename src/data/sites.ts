@@ -1,0 +1,52 @@
+/**
+ * EVA sites (M36). `public/data/sites.json` lists them; each site's
+ * DATA_FILES live in `public/data/<id>/`. `export:grid` writes the index from
+ * `data/sites/<id>/site.json`.
+ */
+
+export interface SiteCredit {
+  label: string;
+  url: string;
+}
+
+/** One entry in `sites.json`. */
+export interface SiteInfo {
+  id: string;
+  name: string;
+  description: string;
+  /** True when the site has no sand / thermal-inertia data: cost is slope only. */
+  slopeOnly: boolean;
+  credits: SiteCredit[];
+}
+
+export const SITES_FILE = 'sites.json';
+export const DEFAULT_SITE_ID = 'jezero';
+
+/** Used until `sites.json` loads, and if it can't. */
+export const FALLBACK_SITES: SiteInfo[] = [
+  { id: DEFAULT_SITE_ID, name: 'Jezero Crater western delta', description: '', slopeOnly: false, credits: [] },
+];
+
+/** Checks the shape of `sites.json`; throws on anything unusable. */
+export function parseSites(json: unknown): SiteInfo[] {
+  if (!Array.isArray(json) || json.length === 0) throw new Error('sites.json: expected a non-empty list');
+  const ids = new Set<string>();
+  return json.map((s: Partial<SiteInfo>, i) => {
+    if (typeof s?.id !== 'string' || !/^[a-z0-9-]+$/.test(s.id)) throw new Error(`sites.json[${i}]: bad id`);
+    if (ids.has(s.id)) throw new Error(`sites.json: duplicate id ${s.id}`);
+    ids.add(s.id);
+    if (typeof s.name !== 'string') throw new Error(`sites.json[${i}]: missing name`);
+    return {
+      id: s.id,
+      name: s.name,
+      description: typeof s.description === 'string' ? s.description : '',
+      slopeOnly: s.slopeOnly === true,
+      credits: Array.isArray(s.credits) ? s.credits.filter((c) => typeof c?.label === 'string' && typeof c?.url === 'string') : [],
+    };
+  });
+}
+
+/** Data directory of one site, under the app's data root (e.g. `/data`). */
+export function siteDataUrl(dataRoot: string, id: string): string {
+  return `${dataRoot.replace(/\/$/, '')}/${id}`;
+}

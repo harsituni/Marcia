@@ -1,11 +1,13 @@
 /**
  * M16: export the real grid files in the M01 formats.
  *
- *   data/raw/{elev,slope,sand,soft}_5m.tif  →  public/data/{meta.json, cost.bin, elevation.bin, sand.bin}
+ *   data/raw/<id>/{elev,slope,sand,soft}_5m.tif  →  public/data/<id>/{meta.json, cost.bin, elevation.bin, sand.bin}
  *
- * Run with `npm run export:grid` after `npm run fetch:clip`,
- * `npm run compute:slope` and `npm run compute:sand`. GDAL only reads the
- * rasters; everything else is plain TypeScript.
+ * Run with `npm run export:grid -- --site <id>` (default jezero, M36) after
+ * `npm run fetch:clip`, `npm run compute:slope` and `npm run compute:sand`.
+ * GDAL only reads the rasters; everything else is plain TypeScript. A site
+ * with no sand data (see `hasSandData`) gets slope-only cost and an all-zero
+ * sand.bin ("no sand mapped", not "no sand there").
  *
  * Formats (src/contracts.ts, DATA_FILES / GridMeta): row-major, index =
  * y * width + x, y = 0 is the north row. cost.bin and elevation.bin are
@@ -20,8 +22,10 @@ import { fileURLToPath } from 'node:url';
 import type { GridMeta, Stop } from '../src/contracts.ts';
 import { DATA_FILES } from '../src/contracts.ts';
 import { MAX_SLOPE_DEG, SAND_COST_MULT, SOFT_COST_MULT } from '../src/engine/model.ts';
+import { hasSandData } from './compute-sand.ts';
 import { findGdal, runOk } from './fetch-clip.ts';
 import type { Gdal } from './fetch-clip.ts';
+import { siteFromArgv, writeSitesIndex } from './site.ts';
 
 export interface CostConsts {
   maxSlopeDeg: number;
@@ -85,10 +89,6 @@ function float32LE(a: Float32Array): Buffer {
 
 // ---------------------------------------------------------------- CLI
 
-const ROOT = resolve(import.meta.dirname, '..');
-const RAW = join(ROOT, 'data', 'raw');
-const OUT = join(ROOT, 'public', 'data');
-const SITE = join(ROOT, 'data', 'site.json');
 const MARS_R = 3396190;
 
 function fail(msg: string): never {
@@ -104,20 +104,26 @@ interface Info {
 }
 
 async function main(): Promise<void> {
+  const { site, paths } = siteFromArgv();
+  const RAW = paths.rawDir;
+  const OUT = paths.outDir;
+  const withSand = hasSandData(site);
   console.log('==> Checking tools');
   const gdal: Gdal = findGdal();
   console.log((await runOk(gdal, 'gdalinfo', ['--version'])).trim());
 
-  const inputs = {
+  const all = {
     elev: { file: join(RAW, 'elev_5m.tif'), type: 'Float32', hint: 'npm run fetch:clip' },
     slope: { file: join(RAW, 'slope_5m.tif'), type: 'Float32', hint: 'npm run compute:slope' },
     sand: { file: join(RAW, 'sand_5m.tif'), type: 'Byte', hint: 'npm run compute:sand' },
     soft: { file: join(RAW, 'soft_5m.tif'), type: 'Byte', hint: 'npm run compute:sand' },
   } as const;
+  const inputs: Partial<typeof all> = withSand ? all : { elev: all.elev, slope: all.slope };
+  if (!withSand) console.log(`  ${site.id} has no sand data: slope-only cost, sand.bin all 0`);
   for (const { file, hint } of Object.values(inputs)) if (!existsSync(file)) fail(`${file} not found. Run \`${hint}\` first.`);
 
   const info = async (p: string) => JSON.parse(await runOk(gdal, 'gdalinfo', ['-json', p])) as Info;
-  const elevInfo = await info(inputs.elev.file);
+  const elevInfo = await info(all.elev.file);
   const [W, H] = elevInfo.size;
   const gt = elevInfo.geoTransform;
   const n = W * H;
@@ -151,8 +157,8 @@ async function main(): Promise<void> {
   }
   const elev = raw.elev as Float32Array;
   const slope = raw.slope as Float32Array;
-  const sand = raw.sand as Uint8Array;
-  const soft = raw.soft as Uint8Array;
+  const sand = (raw.sand as Uint8Array | undefined) ?? new Uint8Array(n);
+  const soft = (raw.soft as Uint8Array | undefined) ?? new Uint8Array(n);
 
   console.log('==> Building cost');
   const cost = buildCost(slope, sand, soft);
@@ -177,16 +183,12 @@ async function main(): Promise<void> {
   console.log(`  sand ${pct(sandN)}, soft-only ${pct(softOnly)}`);
 
   console.log('==> Habitat');
-  const site = JSON.parse(readFileSync(SITE, 'utf8')) as {
-    bounds: { minLat: number; maxLat: number };
-    habitat: { lon: number; lat: number };
-  };
   const latTs = (site.bounds.minLat + site.bounds.maxLat) / 2;
   const habitat = lonLatToCell(site.habitat.lon, site.habitat.lat, latTs, MARS_R, gt);
   if (habitat.x < 0 || habitat.y < 0 || habitat.x >= W || habitat.y >= H) fail(`habitat cell ${habitat.x},${habitat.y} is outside the grid`);
   const habCost = cost[habitat.y * W + habitat.x]!;
   console.log(`  site.json habitat ${site.habitat.lon}E ${site.habitat.lat}N → cell (${habitat.x}, ${habitat.y}), cost ${habCost.toFixed(4)}`);
-  if (habCost === Infinity) fail(`habitat cell (${habitat.x}, ${habitat.y}) is blocked (slope ${slope[habitat.y * W + habitat.x]!.toFixed(2)}°). Not moving it; decide in data/site.json.`);
+  if (habCost === Infinity) fail(`habitat cell (${habitat.x}, ${habitat.y}) is blocked (slope ${slope[habitat.y * W + habitat.x]!.toFixed(2)}°). Not moving it; decide in data/sites/${site.id}/site.json.`);
 
   console.log(`==> Writing ${OUT}`);
   mkdirSync(OUT, { recursive: true });
@@ -203,7 +205,7 @@ async function main(): Promise<void> {
     console.log(`  ${name.padEnd(14)} ${statSync(p).size} bytes`);
   }
 
-  console.log('==> Stops in public/data/stops.json (report only, not modified)');
+  console.log(`==> Stops in public/data/${site.id}/stops.json (report only, not modified)`);
   const stopsPath = join(OUT, DATA_FILES.stops);
   if (!existsSync(stopsPath)) console.log('  (no stops.json)');
   else {
@@ -220,6 +222,7 @@ async function main(): Promise<void> {
       console.log(`  ${s.id.padEnd(14)} cell (${x}, ${y})  cost ${c === Infinity ? 'Infinity' : c.toFixed(4)}  ${state}`);
     }
   }
+  console.log(`==> Site index: ${writeSitesIndex()}`);
   console.log('==> Done.');
 }
 

@@ -93,7 +93,8 @@ export interface RingResult {
   polygon: Cell[];
 }
 
-export type AlertKind = 'off-route' | 'slope' | 'oxygen';
+/** `space-weather` (M35): DONKI says a solar storm blocks or tightens the EVA. */
+export type AlertKind = 'off-route' | 'slope' | 'oxygen' | 'space-weather';
 export type AlertSeverity = 'warn' | 'critical';
 
 export interface Alert {

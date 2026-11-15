@@ -4,9 +4,9 @@ import { describe, expect, it } from 'vitest';
 import type { Stop } from '../src/contracts.ts';
 
 const ROOT = join(import.meta.dirname, '..');
-const DATA = join(ROOT, 'public', 'data');
+const DATA = join(ROOT, 'public', 'data', 'jezero');
 const stops = JSON.parse(readFileSync(join(DATA, 'stops.json'), 'utf8')) as Stop[];
-const site = JSON.parse(readFileSync(join(ROOT, 'data', 'site.json'), 'utf8')) as {
+const site = JSON.parse(readFileSync(join(ROOT, 'data', 'sites', 'jezero', 'site.json'), 'utf8')) as {
   sizeM: { width: number; height: number };
   bounds: { minLon: number; maxLon: number; minLat: number; maxLat: number };
   habitat: { lon: number; lat: number };
@@ -17,7 +17,7 @@ const CELL_M = 5;
 const W = site.sizeM.width / CELL_M;
 const H = site.sizeM.height / CELL_M;
 
-describe('public/data/stops.json (M21)', () => {
+describe('public/data/jezero/stops.json (M21)', () => {
   it('has 3–5 stops with unique ids', () => {
     expect(stops.length).toBeGreaterThanOrEqual(3);
     expect(stops.length).toBeLessThanOrEqual(5);
@@ -54,10 +54,10 @@ describe('public/data/stops.json (M21)', () => {
     for (const s of stops) expect(Math.hypot(s.cell.x - hx, s.cell.y - hy)).toBeGreaterThan(10);
   });
 
-  it('every photo is a JPEG in public/photos', () => {
+  it('every photo is a JPEG in public/data/photos', () => {
     for (const s of stops) {
       const file = normalize(join(DATA, s.photo));
-      expect(file.startsWith(join(ROOT, 'public', 'photos'))).toBe(true);
+      expect(file.startsWith(join(ROOT, 'public', 'data', 'photos'))).toBe(true);
       expect(existsSync(file)).toBe(true);
       const head = readFileSync(file).subarray(0, 3);
       expect([...head]).toEqual([0xff, 0xd8, 0xff]);

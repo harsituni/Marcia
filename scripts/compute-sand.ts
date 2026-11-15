@@ -1,11 +1,15 @@
 /**
  * M12: sand and soft-ground masks on the elevation grid.
  *
- *   data/raw/sand_5m.tif    PRIMARY sand mask: mapped aeolian bedforms (Byte, 1/0)
- *   data/raw/soft_5m.tif    SECONDARY soft ground: THEMIS TI < SOFT_GROUND_TI_MAX (Byte, 1/0)
- *   data/raw/smooth_5m.tif  optional: smooth / "Us" mantle units (Byte, 1/0; not used yet)
+ *   data/raw/<id>/sand_5m.tif    PRIMARY sand mask: mapped aeolian bedforms (Byte, 1/0)
+ *   data/raw/<id>/soft_5m.tif    SECONDARY soft ground: THEMIS TI < SOFT_GROUND_TI_MAX (Byte, 1/0)
+ *   data/raw/<id>/smooth_5m.tif  optional: smooth / "Us" mantle units (Byte, 1/0; not used yet)
  *
- * Run with `npm run compute:sand` after `npm run fetch:clip`, which downloads
+ * A site with no geologic map or thermal inertia in its site.json (M36: Gale)
+ * has no sand data: the script says so and writes nothing, and export:grid
+ * uses slope-only cost. It never invents a sand layer.
+ *
+ * Run with `npm run compute:sand -- --site <id>` after `npm run fetch:clip`, which downloads
  * the Stack et al. (2020) photogeologic map shapefile and clips the THEMIS TI
  * map onto the elevation grid as ti_5m.tif.
  *
@@ -25,10 +29,17 @@ import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SOFT_GROUND_TI_MAX } from '../src/engine/model.ts';
-import { GEOLOGY_ZIP, findGdal, runOk } from './fetch-clip.ts';
+import { findGdal, geologyZip, runOk } from './fetch-clip.ts';
 import type { Gdal } from './fetch-clip.ts';
+import { siteFromArgv } from './site.ts';
+import type { SiteConfig } from './site.ts';
 
-/** Shapefile layer inside the Stack et al. (2020) zip (Online Resource 3). */
+/** True when the site has the data for a sand mask; otherwise its cost is slope-only. */
+export function hasSandData(site: Pick<SiteConfig, 'sources'>): boolean {
+  return site.sources.geology !== null && site.sources.thermalInertia !== null;
+}
+
+/** Shapefile layer inside the Stack et al. (2020) zip (Online Resource 3); Jezero's site.json names it too. */
 export const GEOLOGY_LAYER = 'M2020_JEZ_geology_edited_equi0_allquads_v6_archive';
 
 /** `SurfUName` values of the aeolian bedform units (Ab-l, Ab-s in Stack et al. 2020, §4.1). */
@@ -61,14 +72,6 @@ export function unitWhere(units: readonly string[]): string {
 
 // ---------------------------------------------------------------- CLI
 
-const ROOT = resolve(import.meta.dirname, '..');
-const RAW_DIR = join(ROOT, 'data', 'raw');
-const ELEV = join(RAW_DIR, 'elev_5m.tif');
-const TI = join(RAW_DIR, 'ti_5m.tif');
-const SAND = join(RAW_DIR, 'sand_5m.tif');
-const SOFT = join(RAW_DIR, 'soft_5m.tif');
-const SMOOTH = join(RAW_DIR, 'smooth_5m.tif');
-
 function fail(msg: string): never {
   console.error(`ERROR: ${msg}`);
   process.exit(1);
@@ -85,6 +88,19 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 const pct = (n: number, d: number) => `${((100 * n) / d).toFixed(2)}%`;
 
 async function main(): Promise<void> {
+  const { site, paths } = siteFromArgv();
+  if (!hasSandData(site)) {
+    console.log(`==> ${site.id} has no geologic sand map or thermal inertia: slope-only cost, no sand layer written.`);
+    return;
+  }
+  const RAW_DIR = paths.rawDir;
+  const ELEV = join(RAW_DIR, 'elev_5m.tif');
+  const TI = join(RAW_DIR, 'ti_5m.tif');
+  const SAND = join(RAW_DIR, 'sand_5m.tif');
+  const SOFT = join(RAW_DIR, 'soft_5m.tif');
+  const SMOOTH = join(RAW_DIR, 'smooth_5m.tif');
+  const GEOLOGY_ZIP = geologyZip(site, paths)!;
+  if (site.sources.geology!.layer !== GEOLOGY_LAYER) fail(`site.json geology layer is not ${GEOLOGY_LAYER}; SAND_UNITS are for the Stack et al. (2020) map only.`);
   console.log('==> Checking tools');
   const gdal = findGdal();
   console.log((await runOk(gdal, 'gdalinfo', ['--version'])).trim());

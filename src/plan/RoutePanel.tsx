@@ -3,6 +3,7 @@ import type { PointerEvent } from 'react';
 import type { RouteResult, Stop } from '../contracts.ts';
 import type { GridData } from '../data/grid.ts';
 import { usableOxygenMin } from '../engine/model.ts';
+import { effectiveConstraints, spaceWeatherHeadline } from '../engine/spaceWeather.ts';
 import { useAppStore } from '../store.ts';
 import { elevationProfile, formatDistance, formatDuration, indexAtDistance } from './profile.ts';
 import type { ElevationProfile } from './profile.ts';
@@ -12,7 +13,9 @@ export function RoutePanel() {
   const route = useAppStore((s) => s.route);
   const data = useAppStore((s) => s.data);
   const stops = useAppStore((s) => s.stops);
-  const constraints = useAppStore((s) => s.constraints);
+  const spaceWeather = useAppStore((s) => s.spaceWeather.assessment);
+  // Space weather can raise the reserve; the stats show what the engine planned with.
+  const constraints = effectiveConstraints(useAppStore((s) => s.constraints), spaceWeather);
   const [open, setOpen] = useState(true);
   const bodyId = useId();
 
@@ -38,6 +41,16 @@ export function RoutePanel() {
           {open ? '▾' : '▸'}
         </span>
       </button>
+      {spaceWeather && spaceWeather.status !== 'clear' && (
+        <p
+          role={spaceWeather.status === 'block' ? 'alert' : 'status'}
+          className="mx-3 mb-2 rounded px-2 py-1 text-xs font-semibold"
+          style={spaceWeather.status === 'block' ? { background: '#D55E00', color: '#fff' } : { background: '#F0E442', color: '#1b1210' }}
+        >
+          <span aria-hidden="true">{spaceWeather.status === 'block' ? '■ ' : '▲ '}</span>
+          {spaceWeatherHeadline(spaceWeather)}
+        </p>
+      )}
       {open && (
         <div id={bodyId} className="space-y-3 border-t border-white/10 px-3 pt-2 pb-3">
           <Stats result={route.result} usable={usable} stops={stops} />

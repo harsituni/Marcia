@@ -1,9 +1,9 @@
 /**
  * M20: basemap PNG covering exactly the grid.
  *
- *   data/raw/src/PSP_002387_1985_RED_A_01_ORTHO.{LBL,JP2}  →  public/data/basemap.png
+ *   data/raw/<id>/src/<site.json ortho>.{LBL,JP2}  →  public/data/<id>/basemap.png
  *
- * Run with `npm run export:basemap` after `npm run fetch:clip`. The full-res
+ * Run with `npm run export:basemap -- --site <id>` (default jezero, M36) after `npm run fetch:clip`. The full-res
  * HiRISE ortho (not the 5 m clip, for sharpness) is warped onto the extent and
  * CRS of data/raw/elev_5m.tif at 1500 × 1500 px (2 m/px; 1200 × 1200 if the
  * PNG would exceed 3 MB), contrast-stretched between its 2nd and 98th
@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { DATA_FILES } from '../src/contracts.ts';
 import { findGdal, run, runOk } from './fetch-clip.ts';
 import type { Gdal } from './fetch-clip.ts';
+import { siteFromArgv, srcFile } from './site.ts';
 
 export interface Extent {
   minX: number;
@@ -57,12 +58,6 @@ export function percentile(values: ArrayLike<number>, p: number, skip?: number):
 
 // ---------------------------------------------------------------- CLI
 
-const ROOT = resolve(import.meta.dirname, '..');
-const ELEV = join(ROOT, 'data', 'raw', 'elev_5m.tif');
-const SRC = join(ROOT, 'data', 'raw', 'src');
-const ORTHO_CANDIDATES = ['PSP_002387_1985_RED_A_01_ORTHO.LBL', 'PSP_002387_1985_RED_A_01_ORTHO.JP2'].map((f) => join(SRC, f));
-const OUT_DIR = join(ROOT, 'public', 'data');
-const OUT = join(OUT_DIR, DATA_FILES.basemap);
 const MAX_BYTES = 3 * 1024 * 1024;
 
 function fail(msg: string): never {
@@ -78,6 +73,11 @@ interface Info {
 }
 
 async function main(): Promise<void> {
+  const { site, paths } = siteFromArgv();
+  const ELEV = join(paths.rawDir, 'elev_5m.tif');
+  const ORTHO_CANDIDATES = [site.sources.ortho.lbl, site.sources.ortho.jp2].map((u) => srcFile(paths, u));
+  const OUT_DIR = paths.outDir;
+  const OUT = join(OUT_DIR, DATA_FILES.basemap);
   console.log('==> Checking tools');
   const base = findGdal();
   // No .aux.xml sidecars next to the inputs or the PNG.

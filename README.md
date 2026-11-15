@@ -32,11 +32,22 @@ Set up in M02:
 | THEMIS thermal inertia | Sand mask (soft ground to avoid) | M12 |
 | CRISM minerals + USGS geology | Science layers *(stretch)* | M30 |
 | MEDA weather + RAD radiation | Conditions and dose *(stretch)* | M31 |
+| NASA DONKI space weather | Block or tighten the EVA during solar storms | M35 |
+
+### Space weather key
+
+M35 reads NASA DONKI through `api.nasa.gov`. Set `VITE_NASA_API_KEY` (CI
+passes the `NASA_API_KEY` repo secret); without it the app uses `DEMO_KEY`,
+which allows only a few requests an hour. The key is compiled into the client
+bundle, so anyone can read it. That is acceptable for a free NASA key.
 
 ### Runtime grid files
 
-The file formats are defined in M01 (`src/contracts.ts`). The app loads the
-real Jezero files from `public/data/`.
+The file formats are defined in M01 (`src/contracts.ts`). The app loads each
+site's files from `public/data/<id>/` (M36: `jezero`, the default, and
+`gale`), listed in `public/data/sites.json`. Stop photos are in
+`public/data/photos/`. Rebuild a site with the scripts and `--site <id>`; see
+[data/raw/README.md](data/raw/README.md#sites-m36).
 
 | File | Contents |
 | --- | --- |

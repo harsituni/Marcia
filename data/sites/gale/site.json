@@ -1,0 +1,81 @@
+{
+  "id": "gale",
+  "name": "Gale Crater, Mount Sharp boxwork",
+  "description": "3x3 km EVA site on the lower slopes of Mount Sharp (Aeolis Mons) around Curiosity's 2025-2026 boxwork traverse: layered sulfate bedrock cut by ridge-and-hollow boxwork. Slope-only cost: no thermal inertia or mapped sand exists for this box.",
+  "crs": {
+    "body": "Mars",
+    "datum": "IAU Mars 2000 sphere",
+    "radiusM": 3396190,
+    "latitude": "planetocentric, degrees, north-positive",
+    "longitude": "degrees, east-positive, 0-360"
+  },
+  "center": {
+    "lon": 137.375,
+    "lat": -4.812
+  },
+  "sizeM": {
+    "width": 3000,
+    "height": 3000
+  },
+  "bounds": {
+    "minLon": 137.3496,
+    "maxLon": 137.4004,
+    "minLat": -4.83731,
+    "maxLat": -4.78669
+  },
+  "corners": {
+    "nw": {
+      "lon": 137.3496,
+      "lat": -4.78669
+    },
+    "ne": {
+      "lon": 137.4004,
+      "lat": -4.78669
+    },
+    "se": {
+      "lon": 137.4004,
+      "lat": -4.83731
+    },
+    "sw": {
+      "lon": 137.3496,
+      "lat": -4.83731
+    }
+  },
+  "habitat": {
+    "lon": 137.3864,
+    "lat": -4.7976
+  },
+  "sources": {
+    "dtm": {
+      "url": "https://hirise-pds.lpl.arizona.edu/PDS/DTM/ESP/ORB_019600_019699/ESP_019698_1750_ESP_019988_1750/DTEEC_019698_1750_019988_1750_U01.IMG"
+    },
+    "ortho": {
+      "jp2": "https://hirise-pds.lpl.arizona.edu/PDS/DTM/ESP/ORB_019600_019699/ESP_019698_1750_ESP_019988_1750/ESP_019698_1750_RED_C_01_ORTHO.JP2",
+      "lbl": "https://hirise-pds.lpl.arizona.edu/PDS/DTM/ESP/ORB_019600_019699/ESP_019698_1750_ESP_019988_1750/ESP_019698_1750_RED_C_01_ORTHO.LBL"
+    },
+    "thermalInertia": null,
+    "geology": null
+  },
+  "credits": [
+    {
+      "label": "HiRISE DTM DTEEC_019698_1750_019988_1750_U01 (NASA/JPL/UArizona)",
+      "url": "https://hirise-pds.lpl.arizona.edu/PDS/DTM/ESP/ORB_019600_019699/ESP_019698_1750_ESP_019988_1750/DTEEC_019698_1750_019988_1750_U01.IMG"
+    },
+    {
+      "label": "HiRISE ortho ESP_019698_1750_RED_C_01_ORTHO (NASA/JPL/UArizona)",
+      "url": "https://hirise-pds.lpl.arizona.edu/PDS/DTM/ESP/ORB_019600_019699/ESP_019698_1750_ESP_019988_1750/ESP_019698_1750_RED_C_01_ORTHO.JP2"
+    },
+    {
+      "label": "Thermal inertia: not available for this box (slope-only cost)",
+      "url": "https://themis.asu.edu/landingsites"
+    },
+    {
+      "label": "Curiosity traverse: NASA/JPL-Caltech MSL waypoints",
+      "url": "https://mars.nasa.gov/mmgis-maps/MSL/Layers/json/MSL_waypoints.json"
+    },
+    {
+      "label": "Stop photos: NASA/JPL-Caltech (Curiosity raw images)",
+      "url": "https://mars.nasa.gov/msl/multimedia/raw-images/"
+    }
+  ]
+}
