@@ -146,18 +146,39 @@ export function colorFor(name: string, original: string, vision: Vision): string
 const rgbKey = (r: number, g: number, b: number) => (r << 16) | (g << 8) | b;
 
 /**
- * Swaps colours in RGBA pixel data in place: every opaque-ish pixel whose RGB
- * exactly matches an entry's `from` becomes its `to`; others are left alone.
+ * Per-channel tolerance for matching a swap's `from` colour. CRISM is drawn at
+ * alpha 220, which shifts channels by 1 when the pixels are read back, so an
+ * exact match misses them.
+ */
+export const SWAP_TOLERANCE = 2;
+
+/** `#rrggbb` → [r, g, b] as 0..255 integers. */
+const rgbOf = (hex: string): [number, number, number] => {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+};
+
+/**
+ * Swaps colours in RGBA pixel data in place: every pixel that is not fully
+ * transparent and whose RGB is within SWAP_TOLERANCE of an entry's `from` on
+ * each channel becomes that entry's `to` (the first matching entry wins). Other
+ * pixels are left alone.
  */
 export function recolorPixels(data: Uint8ClampedArray, swaps: readonly { from: string; to: string }[]): void {
-  const map = new Map<number, number>();
-  for (const s of swaps) map.set(parseInt(s.from.replace('#', ''), 16), parseInt(s.to.replace('#', ''), 16));
+  const pairs = swaps.map((s) => ({ from: rgbOf(s.from), to: rgbOf(s.to) }));
+  const cache = new Map<number, [number, number, number] | null>();
   for (let i = 0; i < data.length; i += 4) {
     if (data[i + 3] === 0) continue;
-    const to = map.get(rgbKey(data[i]!, data[i + 1]!, data[i + 2]!));
-    if (to === undefined) continue;
-    data[i] = (to >> 16) & 255;
-    data[i + 1] = (to >> 8) & 255;
-    data[i + 2] = to & 255;
+    const key = rgbKey(data[i]!, data[i + 1]!, data[i + 2]!);
+    let to = cache.get(key);
+    if (to === undefined) {
+      const hit = pairs.find((p) => [0, 1, 2].every((c) => Math.abs(p.from[c]! - data[i + c]!) <= SWAP_TOLERANCE));
+      to = hit ? hit.to : null;
+      cache.set(key, to);
+    }
+    if (to === null) continue;
+    data[i] = to[0];
+    data[i + 1] = to[1];
+    data[i + 2] = to[2];
   }
 }

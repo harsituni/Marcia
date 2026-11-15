@@ -73,12 +73,45 @@ describe('M34: colour-blind-safe palettes used when a colour vision is chosen', 
     expect(colorFor('Not a unit', '#123456', 'protanopia')).toBe('#123456');
   });
 
-  it('recolorPixels swaps exact matches only and skips transparent pixels', () => {
+  it('recolorPixels swaps exact matches and leaves transparent pixels alone', () => {
     const px = new Uint8ClampedArray([0xe9, 0xc4, 0x6a, 255, 0xe9, 0xc4, 0x6a, 0, 1, 2, 3, 255]);
     recolorPixels(px, [{ from: '#e9c46a', to: '#DDCC77' }]);
     expect([...px]).toEqual([0xdd, 0xcc, 0x77, 255, 0xe9, 0xc4, 0x6a, 0, 1, 2, 3, 255]);
   });
+
+  it('recolorPixels swaps colours within ±2 per channel (CRISM drawn at alpha 220)', () => {
+    // #f4a261 read back as rgb(245,161,97): every channel off by 1.
+    const px = new Uint8ClampedArray([245, 161, 97, 220]);
+    recolorPixels(px, [{ from: '#f4a261', to: '#2a9d8f' }]);
+    expect([...px]).toEqual([0x2a, 0x9d, 0x8f, 220]);
+  });
+
+  it('recolorPixels leaves a colour 3 or more away from every channel alone', () => {
+    const px = new Uint8ClampedArray([247, 161, 97, 220]);
+    recolorPixels(px, [{ from: '#f4a261', to: '#2a9d8f' }]);
+    expect([...px]).toEqual([247, 161, 97, 220]);
+  });
+
+  it('the three CRISM colours swap when shifted by 1 in any channel', () => {
+    const swaps = [
+      { from: '#f4a261', to: '#0072B2' },
+      { from: '#2a9d8f', to: '#EE3377' },
+      { from: '#e9c46a', to: '#332288' },
+    ];
+    for (const s of swaps) {
+      const base = hexRgb(s.from);
+      for (const ch of [0, 1, 2]) for (const d of [-1, 1]) {
+        const rgb = [...base];
+        rgb[ch]! += d;
+        const px = new Uint8ClampedArray([...rgb, 220]);
+        recolorPixels(px, swaps);
+        expect([...px.slice(0, 3)], `${s.from} shifted ${d} on channel ${ch}`).toEqual(hexRgb(s.to));
+      }
+    }
+  });
 });
+
+const hexRgb = (hex: string): number[] => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
 
 describe('simulator', () => {
   it('keeps greys grey (matrix rows sum to 1)', () => {
