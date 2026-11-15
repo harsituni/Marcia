@@ -58,9 +58,13 @@ export function elevationAt(
   return z0 + (z1 - z0) * ty;
 }
 
-/** Height above the ellipsoid for the mesh: local min + exaggerated relief. */
+/**
+ * Height above the ellipsoid for the mesh.
+ * Jezero/Gale elevations are largely negative (areoid); we lift the local
+ * minimum to 0 so the mesh sits on the globe instead of under it.
+ */
 export function displayHeight(elevM: number, minElevM: number, exaggerate = VERTICAL_EXAGGERATION): number {
-  return minElevM + (elevM - minElevM) * exaggerate;
+  return (elevM - minElevM) * exaggerate;
 }
 
 /** Finite min of an elevation grid (or 0 if empty). */

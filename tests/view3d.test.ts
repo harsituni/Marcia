@@ -30,9 +30,9 @@ describe('view3d geo (M33)', () => {
     expect(se.lat).toBeLessThan(bounds.maxLat);
   });
 
-  it('exaggerates relief around the local minimum', () => {
-    expect(displayHeight(-2500, -2560)).toBe(-2560 + 60 * VERTICAL_EXAGGERATION);
-    expect(displayHeight(-2560, -2560)).toBe(-2560);
+  it('lifts the local minimum to ellipsoid height 0 and exaggerates relief', () => {
+    expect(displayHeight(-2500, -2560)).toBe(60 * VERTICAL_EXAGGERATION);
+    expect(displayHeight(-2560, -2560)).toBe(0);
   });
 
   it('samples elevation bilinearly', () => {
