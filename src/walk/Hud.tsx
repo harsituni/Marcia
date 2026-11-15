@@ -9,6 +9,7 @@ import { useAppStore } from '../store.ts';
 import { compassTicks, deriveHud, formatHeading, relativeBearing } from './hud.ts';
 import type { HudState, NextTarget, Status } from './hud.ts';
 import { AlertStack } from './AlertStack.tsx';
+import { ConditionsGauges } from './Conditions.tsx';
 import { ReplayBar } from './ReplayBar.tsx';
 
 /** Okabe-Ito colours (as in the M17 overlays); always paired with a word and a shape. */
@@ -22,7 +23,8 @@ const PANEL = 'rounded-xl border border-white/15 bg-black/65 shadow-lg backdrop-
 
 /**
  * Walk-mode helmet HUD, drawn over the map: compass strip, oxygen and
- * return-margin gauges, overview mini-map and next-stop card.
+ * return-margin gauges, MEDA weather + RAD radiation (M31), overview
+ * mini-map and next-stop card.
  */
 export function Hud() {
   const data = useAppStore((s) => s.data);
@@ -66,6 +68,10 @@ export function Hud() {
         <div className="w-full sm:-mt-[4.5rem] sm:px-40">
           <AlertStack />
         </div>
+      </div>
+      {/* Mid-visor: surface weather + radiation, between the flight gauges and the nav strip. */}
+      <div className="relative flex justify-center">
+        <ConditionsGauges />
       </div>
       {/* Phone: replay bar on its own row. Wider: along the bottom edge, between the two panels. */}
       <div className="relative flex flex-wrap items-end justify-between gap-2">
