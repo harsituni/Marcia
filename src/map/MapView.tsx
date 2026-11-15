@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CRS, latLngBounds } from 'leaflet';
 import type { LatLngBoundsLiteral, LeafletEventHandlerFnMap, Marker as LeafletMarker } from 'leaflet';
 import { CircleMarker, ImageOverlay, MapContainer, Marker, Polygon, Polyline, Tooltip, useMap, useMapEvents } from 'react-leaflet';
@@ -8,8 +8,12 @@ import { useAppStore } from '../store.ts';
 import { cellToLatLng, gridBounds, latLngToCell } from './coords.ts';
 import { habitatIcon, stopIcon } from './pins.ts';
 import { RouteLayer } from './RouteLayer.tsx';
-import { LayerToggles, OverlayLayers } from './OverlayLayers.tsx';
+import { LayerToggles, OverlayLayers, useCrismLegend, useGeologyLegend } from './OverlayLayers.tsx';
 import { COLORS } from './overlays.ts';
+import { GEOLOGY_FILES } from './geology.ts';
+import { CRISM_FILES } from './crism.ts';
+import { inspectSpot, loadPixelSampler, readingText } from './inspect.ts';
+import type { PixelSampler, Reading, SamplePixel } from './inspect.ts';
 import { WalkMarker } from './WalkMarker.tsx';
 
 /**
@@ -22,7 +26,14 @@ export function MapView() {
   const notice = useAppStore((s) => s.notice);
   const mode = useAppStore((s) => s.mode);
   const drawing = useAppStore((s) => s.drawingZone !== null);
+  const inspecting = useAppStore((s) => s.inspecting);
+  const setInspecting = useAppStore((s) => s.setInspecting);
   const editing = mode === 'plan' && data.status === 'ready';
+
+  // Inspect only means something in Plan mode; leaving it turns the mode off.
+  useEffect(() => {
+    if (!editing && inspecting) setInspecting(false);
+  }, [editing, inspecting, setInspecting]);
 
   return (
     <>
@@ -48,9 +59,13 @@ export function MapView() {
         <p className="pointer-events-none absolute top-3 left-1/2 z-[1000] -translate-x-1/2 rounded-md bg-black/60 px-3 py-1.5 text-xs whitespace-nowrap">
           {drawing
             ? 'Click the map to add corners of the avoid zone · Finish when done'
-            : 'Click the map to add a stop · drag a pin to move it · click a pin for details'}
+            : inspecting
+              ? 'Click the map to inspect a spot · Esc closes it'
+              : 'Click the map to add a stop · drag a pin to move it · click a pin for details'}
         </p>
       )}
+      {editing && <InspectToggle />}
+      {editing && data.status === 'ready' && <InspectPopup grid={data.grid} />}
       {notice && (
         <p role="status" className="absolute top-12 left-1/2 z-[1000] -translate-x-1/2 rounded-md bg-amber-900/90 px-3 py-1.5 text-sm">
           {notice}
@@ -97,19 +112,117 @@ function GridLayers({ grid }: { grid: GridData }) {
 
 const BLOCKED = "Can't put a stop there: too steep or outside the map.";
 
-/** Clicking empty map adds a stop at the end of the route, or a zone corner while drawing an avoid zone (M32). */
+/**
+ * Clicking empty map adds a stop at the end of the route, or a zone corner while drawing an avoid zone (M32),
+ * or opens the spot's details while Inspect is on (#91). The store decides which.
+ */
 function AddStopOnClick() {
-  const addStop = useAppStore((s) => s.addStop);
-  const addZonePoint = useAppStore((s) => s.addZonePoint);
+  const mapClick = useAppStore((s) => s.mapClick);
   const showNotice = useAppStore((s) => s.showNotice);
   useMapEvents({
     click(e) {
-      const cell = latLngToCell(e.latlng.lat, e.latlng.lng);
-      if (useAppStore.getState().drawingZone) addZonePoint(cell);
-      else if (!addStop(cell)) showNotice(BLOCKED);
+      if (mapClick(latLngToCell(e.latlng.lat, e.latlng.lng)) === 'blocked') showNotice(BLOCKED);
     },
   });
   return null;
+}
+
+/** #91: the Inspect on/off button, top left of the map in Plan mode, beside Leaflet's zoom buttons. */
+export function InspectToggle() {
+  const on = useAppStore((s) => s.inspecting);
+  const setInspecting = useAppStore((s) => s.setInspecting);
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={() => setInspecting(!on)}
+      className={`absolute top-3 left-14 z-[1000] rounded-md px-3 py-1.5 text-xs shadow-lg backdrop-blur-sm ${
+        on ? 'bg-mars text-white' : 'bg-black/70 text-white/90 hover:bg-black/85'
+      }`}
+    >
+      {on ? 'Inspect: on' : 'Inspect'}
+    </button>
+  );
+}
+
+/** Decoded overlay image for `url`, or null while loading, when there is none, or for another grid size. */
+function useSampler(url: string | null, gridWidth: number, gridHeight: number): PixelSampler | null {
+  const [state, setState] = useState<{ key: string; sampler: PixelSampler | null } | null>(null);
+  const key = url ? `${url}|${gridWidth}x${gridHeight}` : null;
+  useEffect(() => {
+    if (!url) return;
+    const wanted = `${url}|${gridWidth}x${gridHeight}`;
+    let live = true;
+    void loadPixelSampler(url, gridWidth, gridHeight).then((sampler) => live && setState({ key: wanted, sampler }));
+    return () => {
+      live = false;
+    };
+  }, [url, gridWidth, gridHeight]);
+  return key && state?.key === key ? state.sampler : null;
+}
+
+/** #91: details for the inspected cell: elevation, slope, geology and CRISM, each with its source. */
+export function InspectPopup({ grid }: { grid: Pick<GridData, 'meta' | 'elevation'> }) {
+  const cell = useAppStore((s) => s.inspectCell);
+  const closeInspect = useAppStore((s) => s.closeInspect);
+  const site = useAppStore((s) => s.sites.find((x) => x.id === s.siteId));
+  const geology = useGeologyLegend();
+  const crism = useCrismLegend();
+  const { width, height } = grid.meta;
+  const geologySampler = useSampler(geology.legend ? `${geology.url}/${GEOLOGY_FILES.image}` : null, width, height);
+  const crismSampler = useSampler(crism.legend ? `${crism.url}/${CRISM_FILES.image}` : null, width, height);
+
+  useEffect(() => {
+    if (!cell) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeInspect();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [cell, closeInspect]);
+
+  if (!cell) return null;
+  const samplePixel: SamplePixel = (layer, x, y) => (layer === 'geology' ? geologySampler : crismSampler)?.(x, y) ?? null;
+  const spot = inspectSpot(grid, site, geology.legend, crism.legend, cell, samplePixel);
+
+  return (
+    <section
+      role="dialog"
+      aria-label="Spot details"
+      className="absolute top-14 left-14 z-[1001] w-72 rounded-lg bg-black/85 p-3 text-sm shadow-xl backdrop-blur-sm"
+    >
+      <header className="mb-2 flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <h2 className="font-semibold">Spot details</h2>
+          <p className="text-xs text-white/60">
+            Cell x {cell.x}, y {cell.y}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={closeInspect}
+          aria-label="Close spot details"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-base leading-none hover:bg-white/20"
+        >
+          ×
+        </button>
+      </header>
+      <dl className="space-y-2">
+        <SpotRow label="Elevation" reading={spot.elevation} format={(v) => `${v.toFixed(1)} m`} />
+        <SpotRow label="Slope" reading={spot.slope} format={(v) => `${v.toFixed(1)}°`} />
+        <SpotRow label="Geology unit" reading={spot.geology} format={(v) => v} />
+        <SpotRow label="CRISM mineral" reading={spot.crism} format={(v) => v} />
+      </dl>
+    </section>
+  );
+}
+
+function SpotRow<T>({ label, reading, format }: { label: string; reading: Reading<T>; format: (value: T) => string }) {
+  return (
+    <div>
+      <dt className="text-xs text-white/60">{label}</dt>
+      <dd className={reading.value === null ? 'text-white/60 italic' : ''}>{readingText(reading, format)}</dd>
+      <dd className="text-[10px] break-words text-white/50">Source: {reading.source}</dd>
+    </div>
+  );
 }
 
 const ZONE_STYLE = { color: COLORS.noGo, weight: 2, opacity: 0.95, fillColor: COLORS.noGo, fillOpacity: 0.25, dashArray: '6 4' };

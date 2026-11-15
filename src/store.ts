@@ -45,6 +45,9 @@ export type DataState =
 
 export type LayerId = 'difficulty' | 'sand' | 'geology' | 'crism' | 'ring';
 
+/** What a Plan-mode map click did (#91). */
+export type MapClickResult = 'zone' | 'inspect' | 'stop' | 'blocked';
+
 /** Set once the crew has replanned mid-walk; `route` is then the replanned one. */
 export interface Replanned {
   /** Stops dropped by this and any earlier replan, in planned order. */
@@ -114,6 +117,16 @@ interface AppState {
   cancelZone: () => void;
   /** Removes every avoid zone and reroutes. */
   clearZones: () => void;
+
+  /** #91: Inspect mode. While on, a Plan-mode map click opens the spot's details instead of adding a stop. */
+  inspecting: boolean;
+  /** Cell whose details are open, or null. */
+  inspectCell: Cell | null;
+  /** Turns Inspect on or off. On cancels zone drawing; off closes the details. */
+  setInspecting: (on: boolean) => void;
+  closeInspect: () => void;
+  /** Routes a Plan-mode map click: a zone corner while drawing, the details while inspecting, else a new stop. */
+  mapClick: (cell: Cell) => MapClickResult;
 
   /** Stop whose card is open, if any. */
   selectedStopId: string | null;
@@ -312,6 +325,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         data: { status: 'ready', grid },
         stops: grid.stops,
         selectedStopId: null,
+        inspectCell: null,
         constraints: clampConstraints(get().constraints, grid.meta.maxSlopeDeg),
       });
     } catch (err) {
@@ -346,7 +360,22 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
   avoidZones: [],
   drawingZone: null,
-  startZone: () => set({ drawingZone: [], selectedStopId: null }),
+  inspecting: false,
+  inspectCell: null,
+  setInspecting: (on) => set(on ? { inspecting: true, drawingZone: null } : { inspecting: false, inspectCell: null }),
+  closeInspect: () => set({ inspectCell: null }),
+  mapClick: (cell) => {
+    if (get().drawingZone) {
+      get().addZonePoint(cell);
+      return 'zone';
+    }
+    if (get().inspecting) {
+      set({ inspectCell: cell });
+      return 'inspect';
+    }
+    return get().addStop(cell) ? 'stop' : 'blocked';
+  },
+  startZone: () => set({ drawingZone: [], selectedStopId: null, inspecting: false, inspectCell: null }),
   addZonePoint: (cell) => {
     const drawing = get().drawingZone;
     if (drawing) set({ drawingZone: [...drawing, cell] });
