@@ -27,7 +27,8 @@ jobs:
       - run: npm test
       - run: npm run build
         env:
-          BASE_PATH: /${{ github.event.repository.name }}/
+          # Served from the custom domain https://trymarcia.work/ (public/CNAME), so at the root.
+          BASE_PATH: /
           # M35: free NASA api.nasa.gov key; it ends up in the client bundle.
           VITE_NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
           # M37: build id in mission-brief share links.

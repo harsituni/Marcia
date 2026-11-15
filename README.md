@@ -22,7 +22,8 @@ Set up in M02:
 - [Leaflet](https://leafletjs.com/) (via react-leaflet) for the map
 - [Zustand](https://zustand.docs.pmnd.rs/) for app state
 - [Vitest](https://vitest.dev/) for tests
-- Deploy: Vercel or GitHub Pages. CI currently deploys `main` to GitHub Pages.
+- Deploy: CI deploys `main` to GitHub Pages at **https://trymarcia.work/**
+  (custom domain: `public/CNAME` plus the repo's Pages setting).
 
 ## Data sources
 
