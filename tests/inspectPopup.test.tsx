@@ -87,6 +87,14 @@ describe('Inspect toggle and spot popup (#91)', () => {
     expect(text).toContain(`Source: ${SITES[0]!.credits[0]!.label}`);
   });
 
+  it('the Inspect button sits top left, clear of the Settings panel and outside the Leaflet container', async () => {
+    await mount();
+    const b = toggle()!;
+    expect(b.closest('.leaflet-container')).toBeNull();
+    expect(b.classList.contains('left-14')).toBe(true);
+    expect(b.classList.contains('right-3')).toBe(false);
+  });
+
   it('× closes the popup', async () => {
     await mount();
     await inspectOn();

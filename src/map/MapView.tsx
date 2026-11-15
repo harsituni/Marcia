@@ -52,7 +52,6 @@ export function MapView() {
         {route.status === 'ready' && <RouteLayer route={route.result} />}
         {data.status === 'ready' && <StopMarkers editable={editing} />}
         {editing && <AddStopOnClick />}
-        {editing && <InspectToggle />}
         {mode === 'walk' && route.status === 'ready' && <WalkMarker route={route.result} />}
         <ResizeWithContainer bounds={data.status === 'ready' ? gridBounds(data.grid.meta) : null} />
       </MapContainer>
@@ -65,6 +64,7 @@ export function MapView() {
               : 'Click the map to add a stop · drag a pin to move it · click a pin for details'}
         </p>
       )}
+      {editing && <InspectToggle />}
       {editing && data.status === 'ready' && <InspectPopup grid={data.grid} />}
       {notice && (
         <p role="status" className="absolute top-12 left-1/2 z-[1000] -translate-x-1/2 rounded-md bg-amber-900/90 px-3 py-1.5 text-sm">
@@ -127,7 +127,7 @@ function AddStopOnClick() {
   return null;
 }
 
-/** #91: the Inspect on/off button, top right of the map in Plan mode. */
+/** #91: the Inspect on/off button, top left of the map in Plan mode, beside Leaflet's zoom buttons. */
 export function InspectToggle() {
   const on = useAppStore((s) => s.inspecting);
   const setInspecting = useAppStore((s) => s.setInspecting);
@@ -136,11 +136,11 @@ export function InspectToggle() {
       type="button"
       aria-pressed={on}
       onClick={() => setInspecting(!on)}
-      className={`absolute top-3 right-3 z-[1000] rounded-md px-3 py-1.5 text-xs shadow-lg backdrop-blur-sm ${
+      className={`absolute top-3 left-14 z-[1000] rounded-md px-3 py-1.5 text-xs shadow-lg backdrop-blur-sm ${
         on ? 'bg-mars text-white' : 'bg-black/70 text-white/90 hover:bg-black/85'
       }`}
     >
-      Inspect
+      {on ? 'Inspect: on' : 'Inspect'}
     </button>
   );
 }
@@ -187,7 +187,7 @@ export function InspectPopup({ grid }: { grid: Pick<GridData, 'meta' | 'elevatio
     <section
       role="dialog"
       aria-label="Spot details"
-      className="absolute top-14 right-3 z-[1001] w-72 rounded-lg bg-black/85 p-3 text-sm shadow-xl backdrop-blur-sm"
+      className="absolute top-14 left-14 z-[1001] w-72 rounded-lg bg-black/85 p-3 text-sm shadow-xl backdrop-blur-sm"
     >
       <header className="mb-2 flex items-start gap-2">
         <div className="min-w-0 flex-1">
