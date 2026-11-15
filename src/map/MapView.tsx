@@ -20,6 +20,7 @@ export function MapView() {
   const route = useAppStore((s) => s.route);
   const notice = useAppStore((s) => s.notice);
   const mode = useAppStore((s) => s.mode);
+  const stopOpen = useAppStore((s) => s.selectedStopId !== null);
   const editing = mode === 'plan' && data.status === 'ready';
 
   return (
@@ -52,7 +53,7 @@ export function MapView() {
         </p>
       )}
       {/* The HUD takes the corners in Walk mode; layers stay as set in Plan. */}
-      {mode === 'plan' && route.status === 'ready' && <RouteLegend />}
+      {mode === 'plan' && route.status === 'ready' && <RouteLegend besideCard={stopOpen} />}
       {mode === 'plan' && data.status === 'ready' && <LayerToggles />}
       {data.status !== 'ready' && (
         <div className="pointer-events-none absolute inset-0 z-[1000] flex items-center justify-center">
