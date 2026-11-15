@@ -30,6 +30,8 @@ jobs:
           BASE_PATH: /${{ github.event.repository.name }}/
           # M35: free NASA api.nasa.gov key; it ends up in the client bundle.
           VITE_NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
+          # M37: build id in mission-brief share links.
+          VITE_COMMIT: ${{ github.sha }}
       - if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v4
         with:

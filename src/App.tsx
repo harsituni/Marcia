@@ -1,4 +1,6 @@
 import { useEffect } from 'react';
+import { Brief, BriefButton } from './brief/Brief.tsx';
+import { parseHash } from './brief/share.ts';
 import { MapView } from './map/MapView.tsx';
 import { RoutePanel } from './plan/RoutePanel.tsx';
 import { SpaceWeatherChip } from './SpaceWeatherChip.tsx';
@@ -20,7 +22,17 @@ export function App() {
   const loadData = useAppStore((s) => s.loadData);
 
   useEffect(() => {
-    void loadData();
+    // A share link (M37) restores its plan instead of loading the default site.
+    const req = parseHash(location.hash);
+    const s = useAppStore.getState();
+    if (req.kind === 'shared') {
+      void s.restoreShared(req.plan);
+      return;
+    }
+    if (req.kind === 'error') s.showNotice(req.message);
+    void loadData().then(() => {
+      if (req.kind === 'brief') useAppStore.getState().setBriefOpen(true);
+    });
   }, [loadData]);
 
   return (
@@ -34,6 +46,7 @@ export function App() {
         </div>
         <div className="flex items-center gap-3">
         <SpaceWeatherChip />
+        <BriefButton />
         <div role="tablist" aria-label="Mode" className="flex rounded-md bg-white/5 p-0.5 text-sm">
           {MODES.map((m) => (
             <button
@@ -60,6 +73,7 @@ export function App() {
         </div>
         {mode === 'plan' && <RoutePanel />}
       </main>
+      <Brief />
     </div>
   );
 }

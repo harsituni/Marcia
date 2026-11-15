@@ -11,7 +11,8 @@ import { checkAlerts } from './engine/alerts.ts';
 import { createWorkerEngine } from './engine/client.ts';
 import type { EngineClient } from './engine/client.ts';
 import { usableOxygenMin } from './engine/model.ts';
-import { assessSpaceWeather, effectiveConstraints, ringOxygenFor, spaceWeatherAlert } from './engine/spaceWeather.ts';
+import { assessSpaceWeather, effectiveConstraints, eventIds, ringOxygenFor, spaceWeatherAlert } from './engine/spaceWeather.ts';
+import type { SharedPlan, SpaceWeatherSnapshot } from './brief/share.ts';
 import type { DonkiBundle, SpaceWeather } from './engine/spaceWeather.ts';
 import stormDemo from '../fixtures/donki/storm.json';
 import { clampConstraints } from './plan/constraints.ts';
@@ -157,6 +158,14 @@ interface AppState {
   /** DONKI fetch and clock; tests swap them out. */
   fetchDonki: (url: string) => Promise<Response>;
   now: () => Date;
+
+  /** Mission brief (M37) is open. */
+  briefOpen: boolean;
+  setBriefOpen: (open: boolean) => void;
+  /** Space weather recorded in a shared link; the brief shows it instead of the live check. */
+  sharedSpaceWeather: SpaceWeatherSnapshot | null;
+  /** Restores a plan from a share link: site, stops, constraints; reruns the route and opens the brief. */
+  restoreShared: (plan: SharedPlan) => Promise<void>;
 }
 
 let engine: EngineClient | null = null;
@@ -477,7 +486,56 @@ export const useAppStore = create<AppState>()((set, get) => ({
   makeEngine: createWorkerEngine,
   fetchDonki: (url) => fetch(url),
   now: () => new Date(),
+
+  briefOpen: false,
+  setBriefOpen: (open) => {
+    set({ briefOpen: open });
+    // The brief map shows the turn-back ring as planned.
+    if (open && !get().ring) void get().planRing();
+  },
+  sharedSpaceWeather: null,
+  restoreShared: async (plan) => {
+    await get().loadSites();
+    const known = get().sites.some((s) => s.id === plan.siteId);
+    if (!known) get().showNotice(`Shared plan is for an unknown site '${plan.siteId}'; showing ${get().sites[0]?.name ?? 'the default site'}.`);
+    const siteId = known ? plan.siteId : DEFAULT_SITE_ID;
+    set({ siteId, mode: 'plan' });
+    await get().loadData(siteDataUrl(DATA_ROOT, siteId));
+    const data = get().data;
+    if (data.status !== 'ready') return;
+    const byId = new Map(data.grid.stops.map((s) => [s.id, s]));
+    const stops: Stop[] = [];
+    for (const p of plan.stops) {
+      if (!isWalkable(data.grid, p.cell)) continue; // a damaged or foreign link; skip rather than break routing
+      const base = byId.get(p.id);
+      stops.push(base ? { ...base, cell: p.cell } : { ...customStop(p.cell, stops), id: p.id, name: p.name ?? p.id });
+    }
+    if (stops.length < plan.stops.length) get().showNotice(`${plan.stops.length - stops.length} shared stop(s) were off the walkable grid and were left out.`);
+    set({
+      stops,
+      constraints: clampConstraints(plan.constraints, data.grid.meta.maxSlopeDeg),
+      sharedSpaceWeather: plan.spaceWeather,
+    });
+    await get().planRoute();
+    get().setBriefOpen(true);
+  },
 }));
+
+/** The current plan as a share-link payload (M37). */
+export function sharePlanFrom(s: AppState, app: string, createdAt: Date): SharedPlan {
+  const siteStops = s.data.status === 'ready' ? new Set(s.data.grid.stops.map((x) => x.id)) : new Set<string>();
+  const a = s.spaceWeather.assessment;
+  return {
+    siteId: s.siteId,
+    stops: s.stops.map((x) => (siteStops.has(x.id) ? { id: x.id, cell: x.cell } : { id: x.id, cell: x.cell, name: x.name })),
+    constraints: s.constraints,
+    spaceWeather: a
+      ? { status: a.status, reason: a.reasons[0]?.text ?? 'quiet', eventIds: eventIds(a), fetchedAt: a.fetchedAt, demo: s.spaceWeather.demo }
+      : null,
+    app,
+    createdAt: createdAt.toISOString(),
+  };
+}
 
 /** Re-runs the space-weather rules and, if the status changed, follows it through the route, ring and alerts. */
 function applySpaceWeather(): void {
