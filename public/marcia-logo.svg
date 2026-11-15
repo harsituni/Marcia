@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">Marcia mission logo</title>
+  <desc id="desc">A cheerful original retro-futurist Martian explorer mascot.</desc>
+  <rect width="64" height="64" rx="18" fill="#211614"/>
+  <path d="M14 29c0-13 8-22 18-22s18 9 18 22v18H14z" fill="#3f8f8a"/>
+  <path d="M19 30c0-9 5-16 13-16s13 7 13 16v14H19z" fill="#c1440e"/>
+  <path d="M20 30c2-7 6-11 12-11s10 4 12 11c-2-2-4-3-7-3-2 0-4 1-5 2-2-2-4-2-6-2-2 0-4 1-6 3z" fill="#ed7540"/>
+  <ellipse cx="27" cy="32" rx="3.5" ry="4.5" fill="#211614"/>
+  <ellipse cx="37" cy="32" rx="3.5" ry="4.5" fill="#211614"/>
+  <circle cx="28" cy="31" r="1" fill="#f7e9df"/>
+  <circle cx="38" cy="31" r="1" fill="#f7e9df"/>
+  <path d="M27 39c3 2 7 2 10 0" fill="none" stroke="#211614" stroke-linecap="round" stroke-width="2"/>
+  <path d="M17 25 10 19M47 25l7-6" fill="none" stroke="#3f8f8a" stroke-linecap="round" stroke-width="3"/>
+  <circle cx="9" cy="18" r="3" fill="#ed7540"/>
+  <circle cx="55" cy="18" r="3" fill="#ed7540"/>
+  <path d="M14 47c5 7 11 10 18 10s13-3 18-10" fill="none" stroke="#f7e9df" stroke-linecap="round" stroke-width="3"/>
+  <path d="M23 51h18" stroke="#f7e9df" stroke-linecap="round" stroke-width="2"/>
+  <path d="M18 45h28" stroke="#211614" stroke-opacity=".45" stroke-width="2"/>
+  <circle cx="32" cy="10" r="2" fill="#ed7540"/>
+  <path d="M32 13v4" stroke="#ed7540" stroke-linecap="round" stroke-width="2"/>
+  <rect x="4.75" y="4.75" width="54.5" height="54.5" rx="15.25" fill="none" stroke="#f7e9df" stroke-opacity=".14" stroke-width="1.5"/>
+</svg>
