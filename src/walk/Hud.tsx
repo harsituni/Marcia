@@ -9,6 +9,7 @@ import { useAppStore } from '../store.ts';
 import { compassTicks, deriveHud, formatHeading, relativeBearing } from './hud.ts';
 import type { HudState, NextTarget, Status } from './hud.ts';
 import { AlertStack } from './AlertStack.tsx';
+import { MedaChip, RadChip } from './Conditions.tsx';
 import { ReplayBar } from './ReplayBar.tsx';
 
 /** Okabe-Ito colours (as in the M17 overlays); always paired with a word and a shape. */
@@ -22,7 +23,8 @@ const PANEL = 'rounded-xl border border-white/15 bg-black/65 shadow-lg backdrop-
 
 /**
  * Walk-mode helmet HUD, drawn over the map: compass strip, oxygen and
- * return-margin gauges, overview mini-map and next-stop card.
+ * return-margin gauges, MEDA weather + RAD radiation (M31), overview
+ * mini-map and next-stop card.
  */
 export function Hud() {
   const data = useAppStore((s) => s.data);
@@ -59,9 +61,17 @@ export function Hud() {
     <section aria-label="Helmet display" className="hud pointer-events-none absolute inset-0 z-[1000] flex flex-col justify-between p-2 sm:p-3">
       <div className="hud-vignette absolute inset-0" aria-hidden="true" />
       <div className="relative flex flex-wrap items-start justify-between gap-2">
-        <OxygenGauge hud={hud} />
+        {/* Left chrome: oxygen + MEDA stacked so the map centre stays clear. */}
+        <div className="flex flex-col gap-1.5">
+          <OxygenGauge hud={hud} />
+          <MedaChip />
+        </div>
         <Compass hud={hud} />
-        <MarginGauge hud={hud} />
+        {/* Right chrome: return margin + RAD. */}
+        <div className="flex flex-col gap-1.5">
+          <MarginGauge hud={hud} />
+          <RadChip />
+        </div>
         {/* Its own row; on wide screens pulled up under the compass, between the gauges. */}
         <div className="w-full sm:-mt-[4.5rem] sm:px-40">
           <AlertStack />
