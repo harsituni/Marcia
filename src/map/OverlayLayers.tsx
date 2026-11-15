@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 import { ImageOverlay, Pane, Polygon } from 'react-leaflet';
 import type { GridData } from '../data/grid.ts';
 import { MIN_ZONE_POINTS } from '../engine/avoid.ts';
+import { VISIONS, colorFor, recolorPixels } from './colorblind.ts';
+import type { Vision } from './colorblind.ts';
 import { DATA_ROOT, useAppStore } from '../store.ts';
 import { siteDataUrl } from '../data/sites.ts';
 import { GEOLOGY_FILES, loadGeologyLegend } from './geology.ts';
@@ -15,6 +17,40 @@ import { COLORS, classifyCost, difficultyPixels, overlayScale, sandPixels } from
 import type { Pixels } from './overlays.ts';
 
 /** The current site's geology legend, fetched once per site; null while loading or when the site has none. */
+/**
+ * M34: `url` with its legend colours swapped for the crew's colour vision
+ * (colorblind.ts SAFE_COLORS). Normal vision gets `url` itself; otherwise
+ * null until the recoloured copy is ready.
+ */
+function useVisionImage(url: string | null, items: readonly { name: string; color: string }[] | undefined): string | null {
+  const vision = useAppStore((s) => s.colorVision);
+  const key = `${url}|${vision}`;
+  const [out, setOut] = useState<{ key: string; url: string } | null>(null);
+  useEffect(() => {
+    if (!url || vision === 'normal' || !items) return;
+    let live = true;
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0);
+      const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      recolorPixels(pixels.data, items.map((i) => ({ from: i.color, to: colorFor(i.name, i.color, vision) })));
+      ctx.putImageData(pixels, 0, 0);
+      if (live) setOut({ key, url: canvas.toDataURL() });
+    };
+    img.src = url;
+    return () => {
+      live = false;
+    };
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!url || vision === 'normal') return url;
+  return out?.key === key ? out.url : null;
+}
+
 function useGeologyLegend(): { url: string; legend: GeologyLegend | null } {
   const siteId = useAppStore((s) => s.siteId);
   const url = siteDataUrl(DATA_ROOT, siteId);
@@ -64,6 +100,8 @@ export function OverlayLayers({ grid }: { grid: GridData }) {
   // M30: geology is a Plan-mode layer, drawn only for sites that have a geologic map.
   const showGeology = layers.geology && mode === 'plan' && geology.legend !== null;
   const showCrism = layers.crism && mode === 'plan' && crism.legend !== null;
+  const geologyImage = useVisionImage(showGeology ? `${geology.url}/${GEOLOGY_FILES.image}` : null, geology.legend?.units);
+  const crismImage = useVisionImage(showCrism ? `${crism.url}/${CRISM_FILES.image}` : null, crism.legend?.categories);
   const { width, height } = grid.meta;
   const scale = overlayScale(width);
   const bounds = gridBounds(grid.meta);
@@ -81,8 +119,8 @@ export function OverlayLayers({ grid }: { grid: GridData }) {
   return (
     <Pane name="overlays" style={{ zIndex: 420 }}>
       {difficultyUrl && <ImageOverlay url={difficultyUrl} bounds={bounds} className="pixelated" />}
-      {showGeology && <ImageOverlay url={`${geology.url}/${GEOLOGY_FILES.image}`} bounds={bounds} opacity={0.6} className="pixelated" />}
-      {showCrism && <ImageOverlay url={`${crism.url}/${CRISM_FILES.image}`} bounds={bounds} opacity={0.6} className="pixelated" />}
+      {geologyImage && <ImageOverlay url={geologyImage} bounds={bounds} opacity={0.6} className="pixelated" />}
+      {crismImage && <ImageOverlay url={crismImage} bounds={bounds} opacity={0.6} className="pixelated" />}
       {sandUrl && <ImageOverlay url={sandUrl} bounds={bounds} className="pixelated" />}
       {showRing && ring && ring.polygon.length > 2 && (
         <Polygon
@@ -95,7 +133,7 @@ export function OverlayLayers({ grid }: { grid: GridData }) {
   );
 }
 
-const LAYERS: { id: LayerId; label: string; swatch: ReactNode }[] = [
+const LAYERS: { id: LayerId; label: string; swatch: ReactNode | ((vision: Vision) => ReactNode) }[] = [
   {
     id: 'difficulty',
     label: 'Walking difficulty',
@@ -115,21 +153,21 @@ const LAYERS: { id: LayerId; label: string; swatch: ReactNode }[] = [
   {
     id: 'geology',
     label: 'Geology',
-    swatch: (
+    swatch: (v) => (
       <span className="flex gap-0.5" aria-hidden="true">
-        <span className="h-3 w-3 rounded-sm" style={{ background: '#1b7837' }} />
-        <span className="h-3 w-3 rounded-sm" style={{ background: '#fdb863' }} />
+        <span className="h-3 w-3 rounded-sm" style={{ background: colorFor('Delta blocky', '#1b7837', v) }} />
+        <span className="h-3 w-3 rounded-sm" style={{ background: colorFor('Aeolian bedforms, large', '#fdb863', v) }} />
       </span>
     ),
   },
   {
     id: 'crism',
     label: 'CRISM minerals',
-    swatch: (
+    swatch: (v) => (
       <span className="flex gap-0.5" aria-hidden="true">
-        <span className="h-3 w-3 rounded-sm" style={{ background: '#e76f51' }} />
-        <span className="h-3 w-3 rounded-sm" style={{ background: '#2a9d8f' }} />
-        <span className="h-3 w-3 rounded-sm" style={{ background: '#e9c46a' }} />
+        <span className="h-3 w-3 rounded-sm" style={{ background: colorFor('Olivine and olivine mixtures', '#e76f51', v) }} />
+        <span className="h-3 w-3 rounded-sm" style={{ background: colorFor('Smectites', '#2a9d8f', v) }} />
+        <span className="h-3 w-3 rounded-sm" style={{ background: colorFor('Carbonates', '#e9c46a', v) }} />
       </span>
     ),
   },
@@ -180,8 +218,32 @@ export function AvoidZoneControls() {
   );
 }
 
+/**
+ * M34: the crew's colour vision. Anything but Normal swaps geology and CRISM
+ * to colour-blind-safe colours (colorblind.ts SAFE_COLORS).
+ */
+function ColorVisionControl() {
+  const vision = useAppStore((s) => s.colorVision);
+  const setVision = useAppStore((s) => s.setColorVision);
+  return (
+    <div className="mt-1 border-t border-white/10 pt-1">
+      <label className="flex items-center gap-2">
+        <span className="flex-1">Colour vision</span>
+        <select value={vision} onChange={(e) => setVision(e.currentTarget.value as Vision)} className="rounded bg-white/10 px-1 py-0.5">
+          {VISIONS.map((v) => (
+            <option key={v} value={v} className="bg-regolith">
+              {v === 'normal' ? 'Normal' : v[0]!.toUpperCase() + v.slice(1)}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+}
+
 export function LayerToggles() {
   const layers = useAppStore((s) => s.layers);
+  const vision = useAppStore((s) => s.colorVision);
   const toggleLayer = useAppStore((s) => s.toggleLayer);
   const mode = useAppStore((s) => s.mode);
   const geology = useGeologyLegend();
@@ -206,7 +268,7 @@ export function LayerToggles() {
             className="accent-mars"
           />
           <span className="flex-1">{l.label}</span>
-          {l.swatch}
+          {typeof l.swatch === 'function' ? l.swatch(vision) : l.swatch}
         </label>
       ))}
       {layers.geology && (
@@ -228,7 +290,7 @@ export function LayerToggles() {
                 <ul>
                   {geology.legend.units.map((u) => (
                     <li key={u.name} className="flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: u.color }} aria-hidden="true" />
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: colorFor(u.name, u.color, vision) }} aria-hidden="true" />
                       {u.name}
                     </li>
                   ))}
@@ -260,7 +322,7 @@ export function LayerToggles() {
                 <ul>
                   {crism.legend.categories.map((category) => (
                     <li key={category.name} className="flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: category.color }} aria-hidden="true" />
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: colorFor(category.name, category.color, vision) }} aria-hidden="true" />
                       {category.name}
                     </li>
                   ))}
@@ -278,6 +340,7 @@ export function LayerToggles() {
         <p className="mt-1 border-t border-white/10 pt-1 text-white/70">Blue easy · yellow caution · hatched no-go</p>
       )}
       <AvoidZoneControls />
+      <ColorVisionControl />
     </fieldset>
   );
 }
