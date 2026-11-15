@@ -48,7 +48,8 @@ describe('Layers panel legends', () => {
     expect(host.querySelector('#geology-legend')?.hasAttribute('hidden')).toBe(true);
     expect(host.querySelector('#crism-legend')?.hasAttribute('hidden')).toBe(true);
     const panel = host.querySelector('fieldset');
-    expect(panel?.classList.contains('max-h-[45vh]')).toBe(true);
+    // #83: capped to the map height below the zoom buttons, not a fixed 45vh.
+    expect(panel?.classList.contains('max-h-[calc(100%-6.5rem)]')).toBe(true);
     expect(panel?.classList.contains('overflow-y-auto')).toBe(true);
   });
 

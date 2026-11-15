@@ -122,6 +122,17 @@ export function Brief() {
   const result = route.status === 'ready' ? route.result : null;
   const grid = data.status === 'ready' ? data.grid : null;
   const alerts = useMemo(() => (open && result && grid ? expectedAlerts(result, constraints, stops, grid) : []), [open, result, grid, constraints, stops]);
+  // #83: Esc closes the brief, like its Close button.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      if (location.hash.startsWith('#brief')) history.replaceState(null, '', location.pathname + location.search);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, setOpen]);
   if (!open) return null;
 
   const snapshot: SpaceWeatherSnapshot | null =
