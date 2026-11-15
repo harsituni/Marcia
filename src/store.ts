@@ -105,6 +105,8 @@ interface AppState {
   /** Moves a stop. Returns false (and leaves it) if the cell isn't walkable. */
   moveStop: (id: string, cell: Cell) => boolean;
   removeStop: (id: string) => void;
+  /** #98: renames a stop (trimmed, 1-40 chars). Returns false and keeps the old name if empty. Never reroutes. */
+  renameStop: (id: string, name: string) => boolean;
 
   /** M32: crew-drawn avoid zones (polygons of grid cells); the router treats cells inside as blocked. */
   avoidZones: AvoidZone[];
@@ -243,6 +245,9 @@ export function isWalkable(grid: GridData, cell: Cell): boolean {
 }
 
 /** A crew-added stop; the science fields stay blank until someone fills them in. */
+/** Longest stop name the crew can type (#98). */
+export const MAX_STOP_NAME = 40;
+
 function customStop(cell: Cell, existing: Stop[]): Stop {
   let n = 1;
   while (existing.some((s) => s.id === `custom-${n}`)) n++;
@@ -356,6 +361,12 @@ export const useAppStore = create<AppState>()((set, get) => ({
       selectedStopId: get().selectedStopId === id ? null : get().selectedStopId,
     });
     void get().planRoute();
+  },
+  renameStop: (id, name) => {
+    const next = name.trim().slice(0, MAX_STOP_NAME).trim();
+    if (!next || !get().stops.some((s) => s.id === id)) return false;
+    set({ stops: get().stops.map((s) => (s.id === id ? { ...s, name: next } : s)) });
+    return true;
   },
 
   avoidZones: [],
@@ -597,7 +608,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     for (const p of plan.stops) {
       if (!isWalkable(data.grid, p.cell)) continue; // a damaged or foreign link; skip rather than break routing
       const base = byId.get(p.id);
-      stops.push(base ? { ...base, cell: p.cell } : { ...customStop(p.cell, stops), id: p.id, name: p.name ?? p.id });
+      stops.push(base ? { ...base, cell: p.cell, ...(p.name ? { name: p.name.slice(0, MAX_STOP_NAME) } : {}) } : { ...customStop(p.cell, stops), id: p.id, name: p.name ?? p.id });
     }
     if (stops.length < plan.stops.length) get().showNotice(`${plan.stops.length - stops.length} shared stop(s) were off the walkable grid and were left out.`);
     set({
@@ -612,11 +623,11 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
 /** The current plan as a share-link payload (M37). */
 export function sharePlanFrom(s: AppState, app: string, createdAt: Date): SharedPlan {
-  const siteStops = s.data.status === 'ready' ? new Set(s.data.grid.stops.map((x) => x.id)) : new Set<string>();
+  const siteStops = s.data.status === 'ready' ? new Map(s.data.grid.stops.map((x) => [x.id, x.name])) : new Map<string, string>();
   const a = s.spaceWeather.assessment;
   return {
     siteId: s.siteId,
-    stops: s.stops.map((x) => (siteStops.has(x.id) ? { id: x.id, cell: x.cell } : { id: x.id, cell: x.cell, name: x.name })),
+    stops: s.stops.map((x) => (siteStops.get(x.id) === x.name ? { id: x.id, cell: x.cell } : { id: x.id, cell: x.cell, name: x.name })),
     constraints: s.constraints,
     spaceWeather: a
       ? { status: a.status, reason: a.reasons[0]?.text ?? (hasNoData(a) ? noDataText(a) : 'quiet'), eventIds: eventIds(a), fetchedAt: a.fetchedAt, demo: s.spaceWeather.demo }

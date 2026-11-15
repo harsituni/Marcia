@@ -179,6 +179,26 @@ describe('opening a share link', () => {
     expect(store().briefOpen).toBe(true);
   });
 
+  it('keeps renamed preset and custom stop names through a share link (#98)', async () => {
+    await startApp();
+    await store().setSite('gale');
+    const preset = store().stops[0]!;
+    expect(store().addStop({ x: 440, y: 140 })).toBe(true);
+    const custom = store().stops.at(-1)!;
+    expect(store().renameStop(preset.id, 'Renamed preset')).toBe(true);
+    expect(store().renameStop(custom.id, 'My custom stop')).toBe(true);
+    const url = shareUrl('https://x/Marcia/', sharePlanFrom(store(), 'test', new Date()));
+
+    resetEngine();
+    useAppStore.setState({ data: { status: 'idle' }, route: { status: 'idle' }, stops: [], siteId: 'jezero', constraints: DEFAULT_CONSTRAINTS, briefOpen: false });
+    await startApp();
+    const req = parseHash(new URL(url).hash);
+    if (req.kind !== 'shared') throw new Error(req.kind);
+    await store().restoreShared(req.plan);
+    expect(store().stops.find((s) => s.id === preset.id)!.name).toBe('Renamed preset');
+    expect(store().stops.find((s) => s.id === custom.id)!.name).toBe('My custom stop');
+  });
+
   it('skips stops that are off the walkable grid', async () => {
     await startApp();
     const plan: SharedPlan = { ...PLAN, siteId: 'jezero', stops: [{ id: 'berea', cell: { x: 64, y: 238 } }, { id: 'x', cell: { x: 9999, y: 1 }, name: 'X' }], spaceWeather: null };

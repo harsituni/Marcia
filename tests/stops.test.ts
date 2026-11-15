@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Cell } from '../src/contracts.ts';
 import { EngineClient } from '../src/engine/client.ts';
-import { isWalkable, resetEngine, useAppStore } from '../src/store.ts';
+import { isWalkable, resetEngine, sharePlanFrom, useAppStore } from '../src/store.ts';
 import { FakeWorker } from './fakeWorker.ts';
 
 const FIX = join(import.meta.dirname, '..', 'fixtures');
@@ -44,6 +44,46 @@ afterEach(() => {
   vi.unstubAllGlobals();
   resetEngine();
   useAppStore.setState({ data: { status: 'idle' }, route: { status: 'idle' }, stops: [], notice: null });
+});
+
+describe('renaming stops (#98)', () => {
+  const nameOf = (id: string) => store().stops.find((s) => s.id === id)!.name;
+
+  it('renames a preset and a custom stop without rerouting', async () => {
+    store().addStop({ x: 50, y: 85 });
+    await settle();
+    const requests = routeRequests().length;
+    const order = store().stops.map((s) => s.id);
+    const cell = store().stops[0]!.cell;
+    expect(store().renameStop('stop-a', '  Crater rim  ')).toBe(true);
+    expect(store().renameStop('custom-1', 'Dune field')).toBe(true);
+    await settle();
+    expect(nameOf('stop-a')).toBe('Crater rim');
+    expect(nameOf('custom-1')).toBe('Dune field');
+    expect(store().stops.map((s) => s.id)).toEqual(order);
+    expect(store().stops[0]!.cell).toEqual(cell);
+    expect(routeRequests()).toHaveLength(requests);
+  });
+
+  it('rejects empty and whitespace-only names and keeps the old one', () => {
+    const old = nameOf('stop-b');
+    expect(store().renameStop('stop-b', '')).toBe(false);
+    expect(store().renameStop('stop-b', '   	 ')).toBe(false);
+    expect(nameOf('stop-b')).toBe(old);
+    expect(store().renameStop('nope', 'X')).toBe(false);
+  });
+
+  it('caps names at 40 characters', () => {
+    store().renameStop('stop-c', 'x'.repeat(60));
+    expect(nameOf('stop-c')).toBe('x'.repeat(40));
+  });
+
+  it('a renamed stop carries its name in the share plan, a preset with its own name does not', () => {
+    store().renameStop('stop-a', 'Crater rim');
+    const plan = sharePlanFrom(store(), 'test', new Date());
+    expect(plan.stops.find((s) => s.id === 'stop-a')!.name).toBe('Crater rim');
+    expect(plan.stops.find((s) => s.id === 'stop-b')!.name).toBeUndefined();
+  });
 });
 
 describe('stop editing', () => {

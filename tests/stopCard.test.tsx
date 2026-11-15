@@ -95,6 +95,67 @@ describe('stop card', () => {
   });
 });
 
+describe('renaming (#98)', () => {
+  const pencil = () => host.querySelector<HTMLButtonElement>('button[aria-label="Rename stop"]');
+  const field = () => host.querySelector<HTMLInputElement>('input[aria-label="Stop name"]');
+  const type = async (value: string) =>
+    act(async () => {
+      const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+      set.call(field()!, value);
+      field()!.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  const key = (k: string) => act(async () => field()!.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true })));
+
+  it('pencil, type, Enter saves and updates the title', async () => {
+    await select('stop-a');
+    await act(async () => pencil()!.click());
+    await type('  Crater rim ');
+    await key('Enter');
+    expect(field()).toBeNull();
+    expect(store().stops[0]!.name).toBe('Crater rim');
+    expect(host.querySelector('h2')?.textContent).toBe('Crater rim');
+  });
+
+  it('blur saves', async () => {
+    await select('stop-a');
+    await act(async () => pencil()!.click());
+    await type('Via blur');
+    await act(async () => field()!.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
+    expect(store().stops[0]!.name).toBe('Via blur');
+  });
+
+  it('Escape cancels and keeps the card open', async () => {
+    await select('stop-a');
+    await act(async () => pencil()!.click());
+    await type('Nope');
+    await key('Escape');
+    expect(store().stops[0]!.name).toBe(stops[0]!.name);
+    expect(card()).not.toBeNull();
+    expect(field()).toBeNull();
+  });
+
+  it('an empty name is rejected', async () => {
+    await select('stop-a');
+    await act(async () => pencil()!.click());
+    await type('   ');
+    await key('Enter');
+    expect(store().stops[0]!.name).toBe(stops[0]!.name);
+    expect(host.querySelector('h2')?.textContent).toBe(stops[0]!.name);
+  });
+
+  it('the field is capped at 40 characters', async () => {
+    await select('stop-a');
+    await act(async () => pencil()!.click());
+    expect(field()!.maxLength).toBe(40);
+  });
+
+  it('is not offered in Walk mode', async () => {
+    await act(async () => store().setMode('walk'));
+    await select('stop-a');
+    expect(pencil()).toBeNull();
+  });
+});
+
 describe('selection', () => {
   it('ignores unknown ids', () => {
     store().selectStop('nope');

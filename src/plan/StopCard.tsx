@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { Stop } from '../contracts.ts';
 import { dataFileUrl } from '../data/grid.ts';
-import { useAppStore } from '../store.ts';
+import { MAX_STOP_NAME, useAppStore } from '../store.ts';
 
 /** Details for the selected stop: photo, goal, geology and minerals. */
 export function StopCard() {
@@ -60,7 +60,7 @@ export function StopCardView({ stop, n, onClose }: { stop: Stop; n: number; onCl
         <header className="flex items-start gap-2">
           <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-mars text-xs font-bold">{n}</span>
           <div className="min-w-0">
-            <h2 className="leading-tight font-semibold">{stop.name}</h2>
+            {editing ? <StopName stop={stop} /> : <h2 className="leading-tight font-semibold">{stop.name}</h2>}
             <p className="text-xs text-white/60">
               Science value{' '}
               <span aria-label={`${stop.scienceValue} of 3`} className="text-amber-300">
@@ -106,6 +106,57 @@ export function StopCardView({ stop, n, onClose }: { stop: Stop; n: number; onCl
         )}
       </div>
     </article>
+  );
+}
+
+/** #98: the title with a pencil that turns it into a text field. Enter or blur saves, Escape cancels. */
+function StopName({ stop }: { stop: Stop }) {
+  const renameStop = useAppStore((s) => s.renameStop);
+  const [draft, setDraft] = useState<string | null>(null);
+  const done = useRef(false);
+  const finish = (save: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    if (save && draft !== null) renameStop(stop.id, draft);
+    setDraft(null);
+  };
+  if (draft === null) {
+    return (
+      <div className="flex items-start gap-1">
+        <h2 className="leading-tight font-semibold">{stop.name}</h2>
+        <button
+          type="button"
+          aria-label="Rename stop"
+          onClick={() => {
+            done.current = false;
+            setDraft(stop.name);
+          }}
+          className="shrink-0 rounded px-1 text-xs text-white/60 hover:bg-white/10 hover:text-white"
+        >
+          ✎
+        </button>
+      </div>
+    );
+  }
+  return (
+    <input
+      autoFocus
+      aria-label="Stop name"
+      value={draft}
+      maxLength={MAX_STOP_NAME}
+      onChange={(e) => setDraft(e.target.value)}
+      onFocus={(e) => e.currentTarget.select()}
+      onBlur={() => finish(true)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') finish(true);
+        else if (e.key === 'Escape') {
+          e.stopPropagation();
+          e.nativeEvent.stopImmediatePropagation();
+          finish(false);
+        }
+      }}
+      className="w-full rounded bg-white/10 px-1 py-0.5 font-semibold leading-tight outline-none focus:ring-1 focus:ring-mars"
+    />
   );
 }
 
