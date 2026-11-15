@@ -16,10 +16,9 @@ const LAYERS: Record<string, { name: string; color: string }[]> = {
 };
 
 /**
- * Layers that keep their original colours on purpose (the team chose to keep
- * them for normal vision), and that FAIL the check: some unit pairs are under
- * ΔE 15 for some vision types. `it.fails` records that; if the palette is ever
- * made colour-blind-safe these start failing, and should move to LAYERS.
+ * Layers whose ORIGINAL colours (kept for "Normal" colour vision) fail the
+ * check: some pairs are under ΔE 15. `it.fails` records that. When the crew
+ * picks a colour vision, these layers switch to SAFE_COLORS, checked below.
  */
 const KNOWN_CLASHES: Record<string, { name: string; color: string }[]> = {
   Geology: (json('geology.json').units as { name: string; color: string }[]).map(({ name, color }) => ({ name, color })),
