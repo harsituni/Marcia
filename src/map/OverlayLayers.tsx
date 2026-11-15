@@ -146,61 +146,92 @@ export function LayerToggles() {
   const mode = useAppStore((s) => s.mode);
   const geology = useGeologyLegend();
   const crism = useCrismLegend();
+  const [openLegend, setOpenLegend] = useState<'geology' | 'crism' | null>(null);
 
   return (
-    <fieldset className="absolute bottom-3 left-3 z-[1000] rounded-lg bg-black/70 px-3 py-2 text-xs shadow-lg backdrop-blur-sm">
+    <fieldset className="absolute bottom-3 left-3 z-[1000] w-64 max-h-[45vh] overflow-y-auto rounded-lg bg-black/70 px-3 py-2 text-xs shadow-lg backdrop-blur-sm">
       <legend className="sr-only">Map layers</legend>
       <p className="mb-1 font-semibold" aria-hidden="true">
         Layers
       </p>
       {LAYERS.map((l) => (
         <label key={l.id} className="flex cursor-pointer items-center gap-2 py-0.5">
-          <input type="checkbox" checked={layers[l.id]} onChange={() => toggleLayer(l.id)} className="accent-mars" />
+          <input
+            type="checkbox"
+            checked={layers[l.id]}
+            onChange={() => {
+              toggleLayer(l.id);
+              if (layers[l.id] && (l.id === 'geology' || l.id === 'crism')) setOpenLegend(null);
+            }}
+            className="accent-mars"
+          />
           <span className="flex-1">{l.label}</span>
           {l.swatch}
         </label>
       ))}
       {layers.geology && (
-        <div className="mt-1 max-h-40 overflow-y-auto border-t border-white/10 pt-1 text-white/70">
-          {mode !== 'plan' ? (
-            <p>Geology shows in Plan mode</p>
-          ) : geology.legend ? (
-            <>
-              <ul>
-                {geology.legend.units.map((u) => (
-                  <li key={u.name} className="flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: u.color }} aria-hidden="true" />
-                    {u.name}
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-0.5 text-[10px] text-white/50">{geology.legend.source}</p>
-            </>
-          ) : (
-            <p>No geologic map for this site</p>
-          )}
+        <div className="mt-1 border-t border-white/10 pt-1 text-white/70">
+          <button
+            type="button"
+            aria-expanded={openLegend === 'geology'}
+            aria-controls="geology-legend"
+            onClick={() => setOpenLegend((open) => (open === 'geology' ? null : 'geology'))}
+            className="flex w-full items-center justify-between py-0.5 text-left font-medium"
+          >
+            Geology legend <span aria-hidden="true">{openLegend === 'geology' ? '▾' : '▸'}</span>
+          </button>
+          <div id="geology-legend" className="pt-1" hidden={openLegend !== 'geology'}>
+            {mode !== 'plan' ? (
+              <p>Geology shows in Plan mode</p>
+            ) : geology.legend ? (
+              <>
+                <ul>
+                  {geology.legend.units.map((u) => (
+                    <li key={u.name} className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: u.color }} aria-hidden="true" />
+                      {u.name}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-0.5 text-[10px] text-white/50">{geology.legend.source}</p>
+              </>
+            ) : (
+              <p>No geologic map for this site</p>
+            )}
+          </div>
         </div>
       )}
       {layers.crism && (
-        <div className="mt-1 max-h-40 overflow-y-auto border-t border-white/10 pt-1 text-white/70">
-          {mode !== 'plan' ? (
-            <p>CRISM minerals show in Plan mode</p>
-          ) : crism.legend ? (
-            <>
-              <ul>
-                {crism.legend.categories.map((category) => (
-                  <li key={category.name} className="flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: category.color }} aria-hidden="true" />
-                    {category.name}
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-0.5 text-[10px] text-white/50">{crism.legend.note}</p>
-              <p className="mt-0.5 break-all text-[10px] text-white/50">{crism.legend.source}</p>
-            </>
-          ) : (
-            <p>No CRISM map for this site</p>
-          )}
+        <div className="mt-1 border-t border-white/10 pt-1 text-white/70">
+          <button
+            type="button"
+            aria-expanded={openLegend === 'crism'}
+            aria-controls="crism-legend"
+            onClick={() => setOpenLegend((open) => (open === 'crism' ? null : 'crism'))}
+            className="flex w-full items-center justify-between py-0.5 text-left font-medium"
+          >
+            CRISM legend <span aria-hidden="true">{openLegend === 'crism' ? '▾' : '▸'}</span>
+          </button>
+          <div id="crism-legend" className="pt-1" hidden={openLegend !== 'crism'}>
+            {mode !== 'plan' ? (
+              <p>CRISM minerals show in Plan mode</p>
+            ) : crism.legend ? (
+              <>
+                <ul>
+                  {crism.legend.categories.map((category) => (
+                    <li key={category.name} className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: category.color }} aria-hidden="true" />
+                      {category.name}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-0.5 text-[10px] text-white/50">{crism.legend.note}</p>
+                <p className="mt-0.5 break-all text-[10px] text-white/50">{crism.legend.source}</p>
+              </>
+            ) : (
+              <p>No CRISM map for this site</p>
+            )}
+          </div>
         </div>
       )}
       {layers.difficulty && (
