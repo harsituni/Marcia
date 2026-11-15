@@ -1,6 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { EngineClient } from '../src/engine/client.ts';
+import { DEFAULT_CONSTRAINTS, resetEngine, useAppStore } from '../src/store.ts';
+import { IDLE_REPLAY } from '../src/walk/replay.ts';
+import { FakeWorker } from './fakeWorker.ts';
 import { CACHE_KEY, checkDonki, donkiUrl, fetchDonki, readCache } from '../src/data/donki.ts';
 import type { StorageLike } from '../src/data/donki.ts';
 import {
@@ -52,8 +56,15 @@ describe('space-weather rules on real DONKI data', () => {
     const arrivals = marsArrivals(STORM);
     expect(arrivals.length).toBeGreaterThan(0);
     const { at, cmeId } = arrivals[0]!;
-    // Only the CME rules: drop SEP and flares.
-    const cmeOnly: DonkiBundle = { ...STORM, sep: [], flr: [] };
+    // Only the CME rules, and only this one CME (May 2024 had several Mars arrivals close together).
+    const cmeOnly: DonkiBundle = {
+      ...STORM,
+      sep: [],
+      flr: [],
+      cme: STORM.cme!.filter((c) => c.activityID === cmeId),
+      enlil: STORM.enlil!.filter((r) => (r.cmeInputs?.[0]?.CMEID ?? r.simulationID) === cmeId),
+    };
+    expect(marsArrivals(cmeOnly)).toEqual([{ cmeId, at }]);
 
     const tight = assessSpaceWeather(cmeOnly, new Date(at - 48 * H));
     expect(tight.status).toBe('tighten');
@@ -61,11 +72,8 @@ describe('space-weather rules on real DONKI data', () => {
 
     expect(assessSpaceWeather(cmeOnly, new Date(at - 6 * H)).status).toBe('block');
     expect(assessSpaceWeather(cmeOnly, new Date(at + 6 * H)).status).toBe('block');
-    expect(assessSpaceWeather(cmeOnly, new Date(at + 13 * H)).status).not.toBe('block');
-    // Before every arrival's tighten window and after every block window.
-    const last = arrivals.at(-1)!.at;
-    expect(assessSpaceWeather(cmeOnly, new Date(arrivals[0]!.at - 80 * H)).status).toBe('clear');
-    expect(assessSpaceWeather(cmeOnly, new Date(last + 13 * H)).status).toBe('clear');
+    expect(assessSpaceWeather(cmeOnly, new Date(at + 13 * H)).status).toBe('clear');
+    expect(assessSpaceWeather(cmeOnly, new Date(at - 80 * H)).status).toBe('clear');
   });
 
   it('an SEP event blocks for 24 h, then stops', () => {
@@ -79,10 +87,12 @@ describe('space-weather rules on real DONKI data', () => {
   });
 
   it('M and X flares tighten for 24 h; C flares do nothing', () => {
-    const flares = STORM.flr!;
-    const big = flares.find((f) => /^[MX]/.test(f.classType ?? ''))!;
-    expect(big).toBeDefined();
-    const at = Date.parse(big.peakTime ?? big.beginTime);
+    // DONKI's FLR endpoint answered HTTP 404 for every date range when M35
+    // was built, so no real flare response could be saved: STORM.flr is null.
+    // This record is SYNTHETIC, shaped like a DONKI FLR entry.
+    expect(STORM.flr).toBeNull();
+    const big = { flrID: 'SYNTHETIC-FLR-001', beginTime: '2024-05-13T09:24Z', peakTime: '2024-05-13T09:44Z', classType: 'M6.6' };
+    const at = Date.parse(big.peakTime);
     const only: DonkiBundle = { ...STORM, cme: [], enlil: [], sep: [], flr: [big] };
     const sw = assessSpaceWeather(only, new Date(at + H));
     expect(sw.status).toBe('tighten');
@@ -176,5 +186,62 @@ describe('DONKI fetch and cache', () => {
     expect(readCache(storage)).toBeNull();
     await expect(checkDonki({ now, fetch: fakeDonki(TODAY, ALL_429).fetch, storage })).rejects.toThrow();
     expect(readCache(null)).toBeNull();
+  });
+});
+
+describe('space weather in the app (demo storm)', () => {
+  const FIXTURES = join(import.meta.dirname, '..', 'fixtures');
+  const store = () => useAppStore.getState();
+  const settle = async () => {
+    for (let i = 0; i < 6; i++) await new Promise((r) => setTimeout(r, 0));
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetEngine();
+    useAppStore.setState({
+      data: { status: 'idle' },
+      route: { status: 'idle' },
+      stops: [],
+      ring: null,
+      mode: 'plan',
+      walk: null,
+      replay: IDLE_REPLAY,
+      alerts: [],
+      constraints: DEFAULT_CONSTRAINTS,
+      spaceWeather: { assessment: null, stale: false, loading: false, error: null, demo: false },
+    });
+  });
+
+  it('blocks: the engine plans with the raised reserve, Walk shows a critical alert first, the ring shrinks', async () => {
+    const worker = new FakeWorker();
+    resetEngine();
+    vi.stubGlobal('fetch', async (url: string) => new Response(readFileSync(join(FIXTURES, url.replace(/^\/fixtures\//, '')))));
+    useAppStore.setState({ makeEngine: () => new EngineClient(worker) });
+    await store().loadData('/fixtures');
+    useAppStore.setState({ constraints: { ...DEFAULT_CONSTRAINTS, reservePct: 20 } });
+    await store().planRoute();
+    store().toggleLayer('ring');
+    await settle();
+    const ringBefore = worker.sent.filter((m) => m.type === 'ring').at(-1);
+
+    store().setSpaceWeatherDemo(true);
+    await settle();
+    expect(store().spaceWeather.assessment?.status).toBe('block');
+    const lastRoute = worker.sent.filter((m) => m.type === 'route').at(-1);
+    expect(lastRoute?.type === 'route' && lastRoute.req.constraints.reservePct).toBe(20 + SPACE_WEATHER.tightenReservePctAdd);
+    expect(store().constraints.reservePct).toBe(20); // the crew's own setting is untouched
+    const ringAfter = worker.sent.filter((m) => m.type === 'ring').at(-1);
+    if (ringBefore?.type !== 'ring' || ringAfter?.type !== 'ring') throw new Error('no ring request');
+    expect(ringAfter.oxygenLeftMin).toBeLessThan(ringBefore.oxygenLeftMin);
+
+    store().setMode('walk');
+    await settle();
+    expect(store().alerts[0]).toMatchObject({ kind: 'space-weather', severity: 'critical' });
+    expect(store().alerts[0]!.message).toMatch(/Return to the habitat/);
+
+    store().setSpaceWeatherDemo(false);
+    await settle();
+    expect(store().alerts.some((a) => a.kind === 'space-weather')).toBe(false);
   });
 });
