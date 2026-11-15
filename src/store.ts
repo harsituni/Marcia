@@ -4,7 +4,7 @@ import type { Alert, Cell, Constraints, RingResult, RouteResult, Stop } from './
 import { browserStorage, checkDonki } from './data/donki.ts';
 import type { DonkiCheck } from './data/donki.ts';
 import { loadGrid } from './data/grid.ts';
-import { DEFAULT_SITE_ID, FALLBACK_SITES, SITES_FILE, parseSites, siteDataUrl } from './data/sites.ts';
+import { DEFAULT_SITE_ID, FALLBACK_SITES, SITES_FILE, parseSites, siteDataUrl, siteHasLayer } from './data/sites.ts';
 import type { SiteInfo } from './data/sites.ts';
 import type { GridData } from './data/grid.ts';
 import { checkAlerts } from './engine/alerts.ts';
@@ -410,6 +410,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
   setColorVision: (colorVision) => set({ colorVision }),
   toggleLayer: (id) => {
     const on = !get().layers[id];
+    // #82: a site's missing layers can't be switched on.
+    if (on && (id === 'sand' || id === 'geology' || id === 'crism') && !siteHasLayer(get().sites.find((s) => s.id === get().siteId), id)) return;
     set({ layers: { ...get().layers, [id]: on } });
     if (id === 'ring' && on) void get().planRing();
   },

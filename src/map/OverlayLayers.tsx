@@ -6,7 +6,8 @@ import { MIN_ZONE_POINTS } from '../engine/avoid.ts';
 import { VISIONS, colorFor, recolorPixels } from './colorblind.ts';
 import type { Vision } from './colorblind.ts';
 import { DATA_ROOT, useAppStore } from '../store.ts';
-import { siteDataUrl } from '../data/sites.ts';
+import { LAYER_UNAVAILABLE, siteDataUrl, siteHasLayer } from '../data/sites.ts';
+import type { SiteLayer } from '../data/sites.ts';
 import { GEOLOGY_FILES, loadGeologyLegend } from './geology.ts';
 import type { GeologyLegend } from './geology.ts';
 import { CRISM_FILES, loadCrismLegend } from './crism.ts';
@@ -51,33 +52,44 @@ function useVisionImage(url: string | null, items: readonly { name: string; colo
   return out?.key === key ? out.url : null;
 }
 
+/** True when the current site has data for `layer` (#82). */
+export function useSiteHas(layer: SiteLayer): boolean {
+  return useAppStore((s) => siteHasLayer(s.sites.find((x) => x.id === s.siteId), layer));
+}
+
 export function useGeologyLegend(): { url: string; legend: GeologyLegend | null } {
   const siteId = useAppStore((s) => s.siteId);
   const url = siteDataUrl(DATA_ROOT, siteId);
+  // #82: a site without this layer never requests its file.
+  const available = useSiteHas('geology');
   const [state, setState] = useState<{ url: string; legend: GeologyLegend | null }>({ url, legend: null });
   useEffect(() => {
+    if (!available) return;
     let live = true;
     void loadGeologyLegend(url).then((legend) => live && setState({ url, legend }));
     return () => {
       live = false;
     };
-  }, [url]);
-  return state.url === url ? state : { url, legend: null };
+  }, [url, available]);
+  return available && state.url === url ? state : { url, legend: null };
 }
 
 /** The current site's CRISM legend, fetched once per site; null while loading or when absent. */
 export function useCrismLegend(): { url: string; legend: CrismLegend | null } {
   const siteId = useAppStore((s) => s.siteId);
   const url = siteDataUrl(DATA_ROOT, siteId);
+  // #82: a site without this layer never requests its file.
+  const available = useSiteHas('crism');
   const [state, setState] = useState<{ url: string; legend: CrismLegend | null }>({ url, legend: null });
   useEffect(() => {
+    if (!available) return;
     let live = true;
     void loadCrismLegend(url).then((legend) => live && setState({ url, legend }));
     return () => {
       live = false;
     };
-  }, [url]);
-  return state.url === url ? state : { url, legend: null };
+  }, [url, available]);
+  return available && state.url === url ? state : { url, legend: null };
 }
 
 function toDataUrl(p: Pixels): string {
@@ -111,9 +123,10 @@ export function OverlayLayers({ grid }: { grid: GridData }) {
     () => (layers.difficulty ? toDataUrl(difficultyPixels(classifyCost(grid.cost), width, height, scale)) : null),
     [grid.cost, width, height, scale, layers.difficulty],
   );
+  const hasSand = useSiteHas('sand');
   const sandUrl = useMemo(
-    () => (layers.sand ? toDataUrl(sandPixels(grid.sand, width, height, scale)) : null),
-    [grid.sand, width, height, scale, layers.sand],
+    () => (layers.sand && hasSand ? toDataUrl(sandPixels(grid.sand, width, height, scale)) : null),
+    [grid.sand, width, height, scale, layers.sand, hasSand],
   );
 
   return (
@@ -243,6 +256,10 @@ function ColorVisionControl() {
 
 export function LayerToggles() {
   const layers = useAppStore((s) => s.layers);
+  const hasSand = useSiteHas('sand');
+  const hasGeology = useSiteHas('geology');
+  const hasCrism = useSiteHas('crism');
+  const available: Record<LayerId, boolean> = { difficulty: true, ring: true, sand: hasSand, geology: hasGeology, crism: hasCrism };
   const vision = useAppStore((s) => s.colorVision);
   const toggleLayer = useAppStore((s) => s.toggleLayer);
   const mode = useAppStore((s) => s.mode);
@@ -257,10 +274,15 @@ export function LayerToggles() {
         Layers
       </p>
       {LAYERS.map((l) => (
-        <label key={l.id} className="flex cursor-pointer items-center gap-2 py-0.5">
+        <label
+          key={l.id}
+          title={available[l.id] ? undefined : LAYER_UNAVAILABLE}
+          className={`flex items-center gap-2 py-0.5 ${available[l.id] ? 'cursor-pointer' : 'cursor-not-allowed opacity-40'}`}
+        >
           <input
             type="checkbox"
-            checked={layers[l.id]}
+            checked={layers[l.id] && available[l.id]}
+            disabled={!available[l.id]}
             onChange={() => {
               toggleLayer(l.id);
               if (layers[l.id] && (l.id === 'geology' || l.id === 'crism')) setOpenLegend(null);
@@ -271,7 +293,7 @@ export function LayerToggles() {
           {typeof l.swatch === 'function' ? l.swatch(vision) : l.swatch}
         </label>
       ))}
-      {layers.geology && (
+      {layers.geology && available.geology && (
         <div className="mt-1 border-t border-white/10 pt-1 text-white/70">
           <button
             type="button"
@@ -303,7 +325,7 @@ export function LayerToggles() {
           </div>
         </div>
       )}
-      {layers.crism && (
+      {layers.crism && available.crism && (
         <div className="mt-1 border-t border-white/10 pt-1 text-white/70">
           <button
             type="button"
