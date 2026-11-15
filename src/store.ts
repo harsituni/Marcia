@@ -40,7 +40,7 @@ export type DataState =
   | { status: 'ready'; grid: GridData }
   | { status: 'error'; message: string };
 
-export type LayerId = 'difficulty' | 'sand' | 'geology' | 'ring';
+export type LayerId = 'difficulty' | 'sand' | 'geology' | 'crism' | 'ring';
 
 /** Set once the crew has replanned mid-walk; `route` is then the replanned one. */
 export interface Replanned {
@@ -361,7 +361,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     if (get().layers.ring || get().mode === 'walk') await get().planRing();
   },
 
-  layers: { difficulty: false, sand: false, geology: false, ring: false },
+  layers: { difficulty: false, sand: false, geology: false, crism: false, ring: false },
   toggleLayer: (id) => {
     const on = !get().layers[id];
     set({ layers: { ...get().layers, [id]: on } });

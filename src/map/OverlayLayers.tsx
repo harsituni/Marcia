@@ -6,6 +6,8 @@ import { DATA_ROOT, useAppStore } from '../store.ts';
 import { siteDataUrl } from '../data/sites.ts';
 import { GEOLOGY_FILES, loadGeologyLegend } from './geology.ts';
 import type { GeologyLegend } from './geology.ts';
+import { CRISM_FILES, loadCrismLegend } from './crism.ts';
+import type { CrismLegend } from './crism.ts';
 import type { LayerId } from '../store.ts';
 import { cellToLatLng, gridBounds } from './coords.ts';
 import { COLORS, classifyCost, difficultyPixels, overlayScale, sandPixels } from './overlays.ts';
@@ -19,6 +21,21 @@ function useGeologyLegend(): { url: string; legend: GeologyLegend | null } {
   useEffect(() => {
     let live = true;
     void loadGeologyLegend(url).then((legend) => live && setState({ url, legend }));
+    return () => {
+      live = false;
+    };
+  }, [url]);
+  return state.url === url ? state : { url, legend: null };
+}
+
+/** The current site's CRISM legend, fetched once per site; null while loading or when absent. */
+function useCrismLegend(): { url: string; legend: CrismLegend | null } {
+  const siteId = useAppStore((s) => s.siteId);
+  const url = siteDataUrl(DATA_ROOT, siteId);
+  const [state, setState] = useState<{ url: string; legend: CrismLegend | null }>({ url, legend: null });
+  useEffect(() => {
+    let live = true;
+    void loadCrismLegend(url).then((legend) => live && setState({ url, legend }));
     return () => {
       live = false;
     };
@@ -42,8 +59,10 @@ export function OverlayLayers({ grid }: { grid: GridData }) {
   const showRing = useAppStore((s) => s.layers.ring || s.mode === 'walk');
   const mode = useAppStore((s) => s.mode);
   const geology = useGeologyLegend();
+  const crism = useCrismLegend();
   // M30: geology is a Plan-mode layer, drawn only for sites that have a geologic map.
   const showGeology = layers.geology && mode === 'plan' && geology.legend !== null;
+  const showCrism = layers.crism && mode === 'plan' && crism.legend !== null;
   const { width, height } = grid.meta;
   const scale = overlayScale(width);
   const bounds = gridBounds(grid.meta);
@@ -62,6 +81,7 @@ export function OverlayLayers({ grid }: { grid: GridData }) {
     <Pane name="overlays" style={{ zIndex: 420 }}>
       {difficultyUrl && <ImageOverlay url={difficultyUrl} bounds={bounds} className="pixelated" />}
       {showGeology && <ImageOverlay url={`${geology.url}/${GEOLOGY_FILES.image}`} bounds={bounds} opacity={0.6} className="pixelated" />}
+      {showCrism && <ImageOverlay url={`${crism.url}/${CRISM_FILES.image}`} bounds={bounds} className="pixelated" />}
       {sandUrl && <ImageOverlay url={sandUrl} bounds={bounds} className="pixelated" />}
       {showRing && ring && ring.polygon.length > 2 && (
         <Polygon
@@ -102,6 +122,17 @@ const LAYERS: { id: LayerId; label: string; swatch: ReactNode }[] = [
     ),
   },
   {
+    id: 'crism',
+    label: 'CRISM minerals',
+    swatch: (
+      <span className="flex gap-0.5" aria-hidden="true">
+        <span className="h-3 w-3 rounded-sm" style={{ background: '#e76f51' }} />
+        <span className="h-3 w-3 rounded-sm" style={{ background: '#2a9d8f' }} />
+        <span className="h-3 w-3 rounded-sm" style={{ background: '#e9c46a' }} />
+      </span>
+    ),
+  },
+  {
     id: 'ring',
     label: 'Turn-back ring',
     swatch: <span className="h-3 w-3 rounded-full border-2 border-dashed" style={{ borderColor: COLORS.easy }} aria-hidden="true" />,
@@ -114,6 +145,7 @@ export function LayerToggles() {
   const toggleLayer = useAppStore((s) => s.toggleLayer);
   const mode = useAppStore((s) => s.mode);
   const geology = useGeologyLegend();
+  const crism = useCrismLegend();
 
   return (
     <fieldset className="absolute bottom-3 left-3 z-[1000] rounded-lg bg-black/70 px-3 py-2 text-xs shadow-lg backdrop-blur-sm">
@@ -146,6 +178,28 @@ export function LayerToggles() {
             </>
           ) : (
             <p>No geologic map for this site</p>
+          )}
+        </div>
+      )}
+      {layers.crism && (
+        <div className="mt-1 max-h-40 overflow-y-auto border-t border-white/10 pt-1 text-white/70">
+          {mode !== 'plan' ? (
+            <p>CRISM minerals show in Plan mode</p>
+          ) : crism.legend ? (
+            <>
+              <ul>
+                {crism.legend.categories.map((category) => (
+                  <li key={category.name} className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: category.color }} aria-hidden="true" />
+                    {category.name}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-0.5 text-[10px] text-white/50">{crism.legend.note}</p>
+              <p className="mt-0.5 break-all text-[10px] text-white/50">{crism.legend.source}</p>
+            </>
+          ) : (
+            <p>No CRISM map for this site</p>
           )}
         </div>
       )}
