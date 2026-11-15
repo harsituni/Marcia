@@ -25,17 +25,17 @@ export class EngineClient {
     worker.onmessage = (e) => this.onReply(e.data);
   }
 
-  init(meta: GridMeta, cost: Float32Array): void {
+  init(meta: GridMeta, cost: Float32Array, elevation?: Float32Array): void {
     // Structured clone (no transfer) so the caller's grid stays usable.
-    this.worker.postMessage({ type: 'init', meta, cost });
+    this.worker.postMessage(elevation ? { type: 'init', meta, cost, elevation } : { type: 'init', meta, cost });
   }
 
   route(req: RouteRequest): Promise<RouteResult> {
     return this.send({ type: 'route', req }, 'route');
   }
 
-  ring(oxygenLeftMin: number): Promise<RingResult> {
-    return this.send({ type: 'ring', oxygenLeftMin }, 'ring');
+  ring(oxygenLeftMin: number, maxSlopeDeg?: number): Promise<RingResult> {
+    return this.send(maxSlopeDeg === undefined ? { type: 'ring', oxygenLeftMin } : { type: 'ring', oxygenLeftMin, maxSlopeDeg }, 'ring');
   }
 
   replan(from: Cell, stops: Stop[], constraints: Constraints, oxygenLeftMin: number): Promise<RouteResult> {
