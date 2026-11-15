@@ -11,7 +11,7 @@ import { checkAlerts } from './engine/alerts.ts';
 import { createWorkerEngine } from './engine/client.ts';
 import type { EngineClient } from './engine/client.ts';
 import { usableOxygenMin } from './engine/model.ts';
-import { assessSpaceWeather, effectiveConstraints, eventIds, ringOxygenFor, spaceWeatherAlert } from './engine/spaceWeather.ts';
+import { assessSpaceWeather, effectiveConstraints, eventIds, hasNoData, noDataText, ringOxygenFor, spaceWeatherAlert } from './engine/spaceWeather.ts';
 import type { SharedPlan, SpaceWeatherSnapshot } from './brief/share.ts';
 import type { DonkiBundle, SpaceWeather } from './engine/spaceWeather.ts';
 import stormDemo from '../fixtures/donki/storm.json';
@@ -588,7 +588,7 @@ export function sharePlanFrom(s: AppState, app: string, createdAt: Date): Shared
     stops: s.stops.map((x) => (siteStops.has(x.id) ? { id: x.id, cell: x.cell } : { id: x.id, cell: x.cell, name: x.name })),
     constraints: s.constraints,
     spaceWeather: a
-      ? { status: a.status, reason: a.reasons[0]?.text ?? 'quiet', eventIds: eventIds(a), fetchedAt: a.fetchedAt, demo: s.spaceWeather.demo }
+      ? { status: a.status, reason: a.reasons[0]?.text ?? (hasNoData(a) ? noDataText(a) : 'quiet'), eventIds: eventIds(a), fetchedAt: a.fetchedAt, demo: s.spaceWeather.demo }
       : null,
     app,
     createdAt: createdAt.toISOString(),
