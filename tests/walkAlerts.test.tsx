@@ -233,6 +233,8 @@ describe('HUD banner', () => {
   it('shows alerts critical-first, and the Replan button swaps the route and lists dropped stops', async () => {
     await start(30, 50);
     await act(async () => root.render(<Hud />));
+    // Walk off the habitat: the Replan button is hidden while standing on it.
+    await act(async () => store().setWalk({ pathIdx: 1, oxygenLeftMin: 30 }));
     const items = () => [...host.querySelectorAll('ul[aria-label="Alerts"] li')];
     expect(items().length).toBeGreaterThan(0);
     expect(items()[0]!.getAttribute('data-severity')).toBe('critical');
