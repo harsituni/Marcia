@@ -70,51 +70,115 @@ export function closestPair(colors: readonly { name: string; color: string }[], 
 
 /**
  * Colour-blind-safe replacements, used when the crew picks a colour-vision type
- * other than normal. Paul Tol's "muted" qualitative scheme
- * (https://personal.sron.nl/~pault/), keyed by geology unit / CRISM category
- * name. tests/colorblind.test.ts checks every layer stays apart (ΔE ≥ 15)
- * under every vision type with these colours.
+ * other than normal, keyed by geology unit / CRISM category name. Each vision
+ * type has its own palette, so the map, legends and swatches differ per type.
+ *
+ * Colours come from Paul Tol's muted, bright and vibrant schemes
+ * (https://personal.sron.nl/~pault/) and from Okabe & Ito (2008), chosen by
+ * search against the Machado simulator above. tests/colorblind.test.ts checks
+ * every layer stays apart (ΔE ≥ 15) under the vision type its palette is for.
  */
-export const SAFE_COLORS: Readonly<Record<string, string>> = {
-  // Geology (Stack et al. 2020 units on the Jezero grid)
-  'Crater floor fractured 1': '#332288',
-  'Crater floor fractured 2': '#AA4499',
-  'Delta blocky': '#117733',
-  'Delta thinly layered': '#44AA99',
-  'Delta truncated curvilinear layered': '#88CCEE',
-  'Undifferentiated smooth': '#DDDDDD',
-  'Moderate Cover Us': '#882255',
-  Talus: '#999933',
-  'Aeolian bedforms, large': '#DDCC77',
-  'Aeolian bedforms, small': '#CC6677',
-  // CRISM mineral categories
-  'Olivine and olivine mixtures': '#117733',
-  Carbonates: '#DDCC77',
-  Smectites: '#88CCEE',
-  Pyroxenes: '#CC6677',
-  Kaolinite: '#AA4499',
+export const SAFE_PALETTES: Record<Exclude<Vision, 'normal'>, Readonly<Record<string, string>>> = {
+  protanopia: {
+    // Geology (Stack et al. 2020 units on the Jezero grid)
+    'Crater floor fractured 1': '#0072B2',
+    'Crater floor fractured 2': '#33BBEE',
+    'Delta blocky': '#009E73',
+    'Delta thinly layered': '#DDDDDD',
+    'Delta truncated curvilinear layered': '#332288',
+    'Undifferentiated smooth': '#F0E442',
+    'Moderate Cover Us': '#882255',
+    Talus: '#E69F00',
+    'Aeolian bedforms, large': '#DDCC77',
+    'Aeolian bedforms, small': '#CC3311',
+    // CRISM mineral categories
+    'Olivine and olivine mixtures': '#117733',
+    Carbonates: '#F0E442',
+    Smectites: '#332288',
+    Pyroxenes: '#EE3377',
+    Kaolinite: '#DDDDDD',
+  },
+  deuteranopia: {
+    // Geology
+    'Crater floor fractured 1': '#4477AA',
+    'Crater floor fractured 2': '#66CCEE',
+    'Delta blocky': '#228833',
+    'Delta thinly layered': '#DDDDDD',
+    'Delta truncated curvilinear layered': '#44AA99',
+    'Undifferentiated smooth': '#DDCC77',
+    'Moderate Cover Us': '#882255',
+    Talus: '#332288',
+    'Aeolian bedforms, large': '#D55E00',
+    'Aeolian bedforms, small': '#F0E442',
+    // CRISM
+    'Olivine and olivine mixtures': '#D55E00',
+    Carbonates: '#DDDDDD',
+    Smectites: '#33BBEE',
+    Pyroxenes: '#882255',
+    Kaolinite: '#332288',
+  },
+  tritanopia: {
+    // Geology
+    'Crater floor fractured 1': '#332288',
+    'Crater floor fractured 2': '#66CCEE',
+    'Delta blocky': '#228833',
+    'Delta thinly layered': '#DDDDDD',
+    'Delta truncated curvilinear layered': '#999933',
+    'Undifferentiated smooth': '#F0E442',
+    'Moderate Cover Us': '#882255',
+    Talus: '#CC79A7',
+    'Aeolian bedforms, large': '#CC3311',
+    'Aeolian bedforms, small': '#EE6677',
+    // CRISM
+    'Olivine and olivine mixtures': '#CC3311',
+    Carbonates: '#F0E442',
+    Smectites: '#56B4E9',
+    Pyroxenes: '#332288',
+    Kaolinite: '#AA4499',
+  },
 };
 
-/** The colour to draw a legend entry with for `vision`: the original for normal vision, else its safe replacement. */
+/** The colour to draw a legend entry with for `vision`: the original for normal vision, else its safe replacement from that vision's palette. */
 export function colorFor(name: string, original: string, vision: Vision): string {
-  return vision === 'normal' ? original : (SAFE_COLORS[name] ?? original);
+  return vision === 'normal' ? original : (SAFE_PALETTES[vision][name] ?? original);
 }
 
 const rgbKey = (r: number, g: number, b: number) => (r << 16) | (g << 8) | b;
 
 /**
- * Swaps colours in RGBA pixel data in place: every opaque-ish pixel whose RGB
- * exactly matches an entry's `from` becomes its `to`; others are left alone.
+ * Per-channel tolerance for matching a swap's `from` colour. CRISM is drawn at
+ * alpha 220, which shifts channels by 1 when the pixels are read back, so an
+ * exact match misses them.
+ */
+export const SWAP_TOLERANCE = 2;
+
+/** `#rrggbb` → [r, g, b] as 0..255 integers. */
+const rgbOf = (hex: string): [number, number, number] => {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+};
+
+/**
+ * Swaps colours in RGBA pixel data in place: every pixel that is not fully
+ * transparent and whose RGB is within SWAP_TOLERANCE of an entry's `from` on
+ * each channel becomes that entry's `to` (the first matching entry wins). Other
+ * pixels are left alone.
  */
 export function recolorPixels(data: Uint8ClampedArray, swaps: readonly { from: string; to: string }[]): void {
-  const map = new Map<number, number>();
-  for (const s of swaps) map.set(parseInt(s.from.replace('#', ''), 16), parseInt(s.to.replace('#', ''), 16));
+  const pairs = swaps.map((s) => ({ from: rgbOf(s.from), to: rgbOf(s.to) }));
+  const cache = new Map<number, [number, number, number] | null>();
   for (let i = 0; i < data.length; i += 4) {
     if (data[i + 3] === 0) continue;
-    const to = map.get(rgbKey(data[i]!, data[i + 1]!, data[i + 2]!));
-    if (to === undefined) continue;
-    data[i] = (to >> 16) & 255;
-    data[i + 1] = (to >> 8) & 255;
-    data[i + 2] = to & 255;
+    const key = rgbKey(data[i]!, data[i + 1]!, data[i + 2]!);
+    let to = cache.get(key);
+    if (to === undefined) {
+      const hit = pairs.find((p) => [0, 1, 2].every((c) => Math.abs(p.from[c]! - data[i + c]!) <= SWAP_TOLERANCE));
+      to = hit ? hit.to : null;
+      cache.set(key, to);
+    }
+    if (to === null) continue;
+    data[i] = to[0];
+    data[i + 1] = to[1];
+    data[i + 2] = to[2];
   }
 }
