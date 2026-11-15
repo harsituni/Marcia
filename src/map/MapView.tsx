@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { CRS, latLngBounds } from 'leaflet';
 import type { LatLngBoundsLiteral, LeafletEventHandlerFnMap, Marker as LeafletMarker } from 'leaflet';
-import { ImageOverlay, MapContainer, Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet';
+import { CircleMarker, ImageOverlay, MapContainer, Marker, Polygon, Polyline, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import type { Stop } from '../contracts.ts';
 import type { GridData } from '../data/grid.ts';
 import { useAppStore } from '../store.ts';
@@ -9,6 +9,7 @@ import { cellToLatLng, gridBounds, latLngToCell } from './coords.ts';
 import { habitatIcon, stopIcon } from './pins.ts';
 import { RouteLayer, RouteLegend } from './RouteLayer.tsx';
 import { LayerToggles, OverlayLayers } from './OverlayLayers.tsx';
+import { COLORS } from './overlays.ts';
 import { WalkMarker } from './WalkMarker.tsx';
 
 /**
@@ -21,6 +22,7 @@ export function MapView() {
   const notice = useAppStore((s) => s.notice);
   const mode = useAppStore((s) => s.mode);
   const stopOpen = useAppStore((s) => s.selectedStopId !== null);
+  const drawing = useAppStore((s) => s.drawingZone !== null);
   const editing = mode === 'plan' && data.status === 'ready';
 
   return (
@@ -36,6 +38,7 @@ export function MapView() {
       >
         {data.status === 'ready' && <GridLayers grid={data.grid} />}
         {data.status === 'ready' && <OverlayLayers grid={data.grid} />}
+        {mode === 'plan' && <AvoidZonesLayer />}
         {route.status === 'ready' && <RouteLayer route={route.result} />}
         {data.status === 'ready' && <StopMarkers editable={editing} />}
         {editing && <AddStopOnClick />}
@@ -44,7 +47,9 @@ export function MapView() {
       </MapContainer>
       {editing && (
         <p className="pointer-events-none absolute top-3 left-1/2 z-[1000] -translate-x-1/2 rounded-md bg-black/60 px-3 py-1.5 text-xs whitespace-nowrap">
-          Click the map to add a stop · drag a pin to move it · click a pin for details
+          {drawing
+            ? 'Click the map to add corners of the avoid zone · Finish when done'
+            : 'Click the map to add a stop · drag a pin to move it · click a pin for details'}
         </p>
       )}
       {notice && (
@@ -94,16 +99,38 @@ function GridLayers({ grid }: { grid: GridData }) {
 
 const BLOCKED = "Can't put a stop there: too steep or outside the map.";
 
-/** Clicking empty map adds a stop at the end of the route. */
+/** Clicking empty map adds a stop at the end of the route, or a zone corner while drawing an avoid zone (M32). */
 function AddStopOnClick() {
   const addStop = useAppStore((s) => s.addStop);
+  const addZonePoint = useAppStore((s) => s.addZonePoint);
   const showNotice = useAppStore((s) => s.showNotice);
   useMapEvents({
     click(e) {
-      if (!addStop(latLngToCell(e.latlng.lat, e.latlng.lng))) showNotice(BLOCKED);
+      const cell = latLngToCell(e.latlng.lat, e.latlng.lng);
+      if (useAppStore.getState().drawingZone) addZonePoint(cell);
+      else if (!addStop(cell)) showNotice(BLOCKED);
     },
   });
   return null;
+}
+
+const ZONE_STYLE = { color: COLORS.noGo, weight: 2, opacity: 0.95, fillColor: COLORS.noGo, fillOpacity: 0.25, dashArray: '6 4' };
+
+/** Crew-drawn avoid zones, plus the one being drawn (M32). */
+function AvoidZonesLayer() {
+  const zones = useAppStore((s) => s.avoidZones);
+  const drawing = useAppStore((s) => s.drawingZone);
+  return (
+    <>
+      {zones.map((z, i) => (
+        <Polygon key={i} positions={z.map(cellToLatLng)} pathOptions={ZONE_STYLE} interactive={false} />
+      ))}
+      {drawing && drawing.length > 1 && <Polyline positions={drawing.map(cellToLatLng)} pathOptions={{ ...ZONE_STYLE, fillOpacity: 0 }} interactive={false} />}
+      {drawing?.map((c, i) => (
+        <CircleMarker key={i} center={cellToLatLng(c)} radius={4} pathOptions={{ color: '#fff', weight: 1.5, fillColor: COLORS.noGo, fillOpacity: 1 }} interactive={false} />
+      ))}
+    </>
+  );
 }
 
 function StopMarkers({ editable }: { editable: boolean }) {
