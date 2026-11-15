@@ -51,7 +51,7 @@ function useVisionImage(url: string | null, items: readonly { name: string; colo
   return out?.key === key ? out.url : null;
 }
 
-function useGeologyLegend(): { url: string; legend: GeologyLegend | null } {
+export function useGeologyLegend(): { url: string; legend: GeologyLegend | null } {
   const siteId = useAppStore((s) => s.siteId);
   const url = siteDataUrl(DATA_ROOT, siteId);
   const [state, setState] = useState<{ url: string; legend: GeologyLegend | null }>({ url, legend: null });
@@ -66,7 +66,7 @@ function useGeologyLegend(): { url: string; legend: GeologyLegend | null } {
 }
 
 /** The current site's CRISM legend, fetched once per site; null while loading or when absent. */
-function useCrismLegend(): { url: string; legend: CrismLegend | null } {
+export function useCrismLegend(): { url: string; legend: CrismLegend | null } {
   const siteId = useAppStore((s) => s.siteId);
   const url = siteDataUrl(DATA_ROOT, siteId);
   const [state, setState] = useState<{ url: string; legend: CrismLegend | null }>({ url, legend: null });

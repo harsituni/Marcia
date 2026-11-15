@@ -102,3 +102,45 @@ export function expectedAlerts(route: RouteResult, constraints: Constraints, sto
   }
   return [...seen.values()].sort((a, b) => Number(b.severity === 'critical') - Number(a.severity === 'critical') || a.atM - b.atM);
 }
+
+/** One line of "Datasets used" (#81). `url` is absent for modelled entries, which have no source dataset. */
+export interface DatasetEntry {
+  label: string;
+  url?: string;
+  /** True for numbers Marcia models rather than reads from a dataset. */
+  modelled?: boolean;
+}
+
+export const DONKI_CREDIT: DatasetEntry = { label: 'NASA DONKI space weather (CCMC)', url: 'https://kauai.ccmc.gsfc.nasa.gov/DONKI/' };
+
+/** Modelled, not measured: shown in the brief and the About panel so nobody mistakes them for data. */
+export const MODELLED: DatasetEntry[] = [
+  { label: 'MEDA weather gauge (temperature, pressure, wind, humidity): modelled estimate shaped on published Perseverance MEDA ranges, not telemetry', modelled: true },
+  { label: 'RAD radiation gauge: modelled estimate shaped on published Curiosity RAD ranges, not telemetry', modelled: true },
+  { label: 'Walking speed, oxygen use and energy: Marcia constants, modelled estimates (see "What\'s estimated")', modelled: true },
+];
+
+const DOI = /(?:https:\/\/doi\.org\/|doi:)(10\.\S+?)\.?(?=\s|$)/;
+
+/** First DOI in a citation string, as an https://doi.org/ link; undefined if it has none. */
+export function doiUrl(citation: string): string | undefined {
+  const m = DOI.exec(citation);
+  return m ? `https://doi.org/${m[1]}` : undefined;
+}
+
+/**
+ * Every source behind what's on screen for a site: its credits (sites.json),
+ * the geology and CRISM layers when the site has them (citations from their
+ * legend files), NASA DONKI, then the modelled entries. Nothing is added that
+ * isn't already cited in the repo.
+ */
+export function datasetsUsed(
+  credits: readonly { label: string; url: string }[],
+  layers: { geology?: { source: string } | null; crism?: { source: string } | null } = {},
+): DatasetEntry[] {
+  const out: DatasetEntry[] = credits.map((c) => ({ label: c.label, url: c.url }));
+  if (layers.geology) out.push({ label: `Geology layer: ${layers.geology.source}`, url: doiUrl(layers.geology.source) });
+  if (layers.crism) out.push({ label: `CRISM minerals layer: ${layers.crism.source}`, url: doiUrl(layers.crism.source) });
+  out.push(DONKI_CREDIT, ...MODELLED);
+  return out;
+}
