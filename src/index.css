@@ -97,3 +97,72 @@ body {
   opacity: 0.75;
   text-decoration: line-through;
 }
+
+/* Mission brief (M37): a white page in black ink, printed via window.print(). */
+.brief-h2 {
+  margin-bottom: 0.25rem;
+  border-bottom: 1px solid #000;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.brief-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.brief-table th,
+.brief-table td {
+  border: 1px solid #000;
+  padding: 1px 4px;
+  text-align: left;
+  vertical-align: top;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+
+  /* Print only the brief: hide the app behind it and the toolbar. */
+  body * {
+    visibility: hidden;
+  }
+
+  .brief,
+  .brief * {
+    visibility: visible;
+  }
+
+  .brief-overlay {
+    position: static;
+    overflow: visible;
+    background: none;
+    padding: 0;
+  }
+
+  .brief {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    max-width: none;
+    padding: 0;
+    font-size: 10px;
+  }
+
+  body,
+  #root {
+    height: auto;
+    background: #fff;
+  }
+
+  .brief-map {
+    max-width: 105mm;
+  }
+
+  .brief-section {
+    break-inside: avoid;
+  }
+}
