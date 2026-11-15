@@ -7,6 +7,7 @@ import type { Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EngineClient } from '../src/engine/client.ts';
 import { resetEngine, useAppStore } from '../src/store.ts';
+import { formatDuration } from '../src/plan/profile.ts';
 import { Hud } from '../src/walk/Hud.tsx';
 import { FakeWorker } from './fakeWorker.ts';
 
@@ -91,5 +92,8 @@ describe('Hud', () => {
     await act(async () => store().setWalk({ pathIdx: route.result.path.length - 1, oxygenLeftMin: 90 }));
     expect(host.textContent).toContain('Back at the habitat');
     expect(label('Oxygen:')).toMatch(/IN RESERVE$/);
+    // End of the walk: a summary on the Return margin gauge, not a countdown home.
+    expect(label('Return margin:')).toBe(`Return margin: EVA complete · ${formatDuration(route.result.timeMin)} · 390 min O₂ used`);
+    expect(host.textContent).not.toContain('home in');
   });
 });
