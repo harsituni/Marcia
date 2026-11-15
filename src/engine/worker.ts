@@ -20,6 +20,8 @@
  */
 import type { Cell, Constraints, GridMeta, RingResult, RouteRequest, RouteResult, Stop } from '../contracts.ts';
 import { AStar, astarRoute } from './astar.ts';
+import { avoidMask } from './avoid.ts';
+import type { AvoidZone } from './avoid.ts';
 import { replanRoute } from './replan.ts';
 import { HomeField, ringPolygon } from './ring.ts';
 import { slopeDegAt } from './terrain.ts';
@@ -28,6 +30,8 @@ export type WorkerIn =
   /** Send once after loading the data. Transfer `cost.buffer` to avoid a copy. */
   | { type: 'init'; meta: GridMeta; cost: Float32Array; elevation?: Float32Array }
   | { type: 'route'; req: RouteRequest }
+  /** M32: replace the crew's avoid zones (cells inside are blocked). No reply. */
+  | { type: 'avoid'; zones: AvoidZone[] }
   | { type: 'ring'; oxygenLeftMin: number; maxSlopeDeg?: number }
   | { type: 'replan'; from: Cell; stops: Stop[]; constraints: Constraints; oxygenLeftMin: number };
 
@@ -44,8 +48,12 @@ interface EngineState {
   home: HomeField;
   /** Per-cell slope in degrees (Horn), when `init` had the elevation. */
   slope?: Float32Array;
-  /** Router for the last lower slope limit asked for. */
-  limited?: { limit: number; astar: AStar; home: HomeField };
+  /** M32: 1 = inside a crew-drawn avoid zone; absent when there are none. */
+  avoid?: Uint8Array;
+  /** Bumped on every `avoid` message, so cached routers know they're stale. */
+  avoidVersion?: number;
+  /** Router for the last slope limit + avoid zones asked for. */
+  limited?: { limit: number; avoidVersion: number; astar: AStar; home: HomeField };
 }
 
 /** Per-cell slope (degrees) of a row-major elevation grid. */
@@ -66,12 +74,23 @@ export function limitCost(meta: GridMeta, cost: Float32Array, slope: Float32Arra
 
 /** The A* and home field for `limit`: the base ones at or above the baked limit. */
 function routerFor(state: EngineState, limit: number | undefined): { astar: AStar; home: HomeField } {
-  if (!state.slope || limit === undefined || !(limit < state.meta.maxSlopeDeg)) return state;
-  if (state.limited?.limit !== limit) {
-    const cost = limitCost(state.meta, state.cost, state.slope, limit);
-    state.limited = { limit, astar: new AStar(state.meta, cost), home: new HomeField(state.meta, cost, state.meta.habitat) };
+  const slopeLimit = state.slope && limit !== undefined && limit < state.meta.maxSlopeDeg ? limit : Infinity;
+  if (slopeLimit === Infinity && !state.avoid) return state;
+  const avoidVersion = state.avoidVersion ?? 0;
+  if (state.limited?.limit !== slopeLimit || state.limited.avoidVersion !== avoidVersion) {
+    let cost = slopeLimit < Infinity ? limitCost(state.meta, state.cost, state.slope!, slopeLimit) : state.cost;
+    if (state.avoid) cost = applyAvoid(state.meta, cost, state.avoid);
+    state.limited = { limit: slopeLimit, avoidVersion, astar: new AStar(state.meta, cost), home: new HomeField(state.meta, cost, state.meta.habitat) };
   }
   return state.limited;
+}
+
+/** `cost` with every avoid-zone cell blocked; the habitat cell stays open. */
+export function applyAvoid(meta: GridMeta, cost: Float32Array, avoid: Uint8Array): Float32Array {
+  const out = Float32Array.from(cost);
+  const home = meta.habitat.y * meta.width + meta.habitat.x;
+  for (let i = 0; i < out.length; i++) if (i !== home && avoid[i]) out[i] = Infinity;
+  return out;
 }
 
 /** Message handler, exported so tests can drive it without a real worker. */
@@ -89,6 +108,12 @@ export function handleMessage(state: EngineState | null, msg: WorkerIn): { state
   if (!state) return { state, out: { type: 'error', message: `'${msg.type}' sent before 'init'` } };
 
   switch (msg.type) {
+    case 'avoid': {
+      const mask = avoidMask(state.meta, msg.zones);
+      state.avoid = mask.includes(1) ? mask : undefined;
+      state.avoidVersion = (state.avoidVersion ?? 0) + 1;
+      return { state };
+    }
     case 'route': {
       const r = routerFor(state, msg.req.constraints.maxSlopeDeg);
       return { state, out: { type: 'route', result: astarRoute(r.astar, msg.req, state.meta, r.home) } };
