@@ -82,6 +82,8 @@ export interface HudState {
    * Pressing Replan swaps in the direct path home through the stops that still fit.
    */
   returnMargin: { marginMin: number; homeMin: number; fraction: number; status: Status };
+  /** 'start': at the habitat before the first step; 'done': back at the habitat at the end of the path. */
+  phase: 'start' | 'walking' | 'done';
 }
 
 export function deriveHud(input: {
@@ -142,6 +144,7 @@ export function deriveHud(input: {
       fraction: supplyMin > 0 ? Math.min(1, leftMin / supplyMin) : 0,
       status: leftMin <= reserveMin ? 'critical' : leftMin <= reserveMin + CAUTION_MARGIN_MIN ? 'caution' : 'ok',
     },
+    phase: atHome && idx === 0 ? 'start' : atHome && idx === last ? 'done' : 'walking',
     returnMargin: {
       marginMin,
       homeMin,

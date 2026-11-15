@@ -48,6 +48,9 @@ describe('Hud', () => {
     expect(label('Compass: heading')).toBeDefined();
     expect(label('Oxygen:')).toBe('Oxygen: 480 of 480 minutes left, OK');
     expect(label('Return margin:')).toBe('Return margin: 384 minutes spare, OK');
+    // At 0 min the walker is at the habitat: no "home in ~0 min" countdown.
+    expect(host.textContent).toContain('At habitat');
+    expect(host.textContent).not.toContain('home in');
     expect(label('Weather MEDA:')).toMatch(/^Weather MEDA:/);
     expect(label('Radiation RAD:')).toMatch(/^Radiation RAD:/);
     expect(label('Mini-map')).toBeDefined();

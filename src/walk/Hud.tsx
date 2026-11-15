@@ -244,7 +244,7 @@ function MarginGauge({ hud }: { hud: HudState }) {
       ariaLabel={`Return margin: ${rounded} minutes spare, ${word}`}
       value={`${rounded > 0 ? '+' : rounded < 0 ? '−' : ''}${Math.abs(rounded)}`}
       unit="min"
-      detail={`home in ~${formatDuration(m.homeMin)}`}
+      detail={hud.phase === 'start' ? 'At habitat' : `home in ~${formatDuration(m.homeMin)}`}
       fraction={m.fraction}
       status={m.status}
       statusWord={word}
