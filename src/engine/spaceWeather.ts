@@ -185,10 +185,24 @@ export function spaceWeatherAlert(sw: SpaceWeather | null): Alert | null {
   return { kind: 'space-weather', severity: 'warn', message: `Space weather: ${why}. Reserve raised.` };
 }
 
+/**
+ * True when nothing in the data calls for action but some DONKI feed gave no
+ * data (failed or unreadable). That is "no data", never "quiet" (#80).
+ */
+export function hasNoData(sw: SpaceWeather): boolean {
+  return sw.status === 'clear' && sw.missing.length > 0;
+}
+
+/** "no data from FLR" / "no data from FLR, CME". */
+export function noDataText(sw: SpaceWeather): string {
+  return `no data from ${sw.missing.join(', ')}`;
+}
+
 /** One-line summary for the chip and the Plan panel. */
 export function spaceWeatherHeadline(sw: SpaceWeather): string {
   if (sw.status === 'block') return `EVA blocked: ${sw.reasons[0]!.text}`;
   if (sw.status === 'tighten') return `Space weather: tightened (${sw.reasons[0]!.text})`;
+  if (hasNoData(sw)) return `Space weather: ${noDataText(sw)}`;
   return 'Space weather: quiet';
 }
 

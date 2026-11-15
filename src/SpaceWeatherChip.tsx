@@ -1,10 +1,12 @@
 import { useEffect, useId, useState } from 'react';
-import { SPACE_WEATHER, eventIds, spaceWeatherHeadline } from './engine/spaceWeather.ts';
+import { SPACE_WEATHER, eventIds, hasNoData, noDataText, spaceWeatherHeadline } from './engine/spaceWeather.ts';
 import type { SpaceWeatherStatus } from './engine/spaceWeather.ts';
 import { useAppStore } from './store.ts';
 
 /** Okabe-Ito colours plus a shape and a word, like the alert banner. */
-const STYLE: Record<SpaceWeatherStatus, { bg: string; fg: string; shape: string; word: string }> = {
+const STYLE: Record<SpaceWeatherStatus | 'nodata', { bg: string; fg: string; shape: string; word: string }> = {
+  // A feed failed and nothing else was found: grey, never green "quiet" (#80).
+  nodata: { bg: '#5f5f5f', fg: '#ffffff', shape: '?', word: 'No data' },
   block: { bg: '#D55E00', fg: '#ffffff', shape: '■', word: 'Blocked' },
   tighten: { bg: '#F0E442', fg: '#1b1210', shape: '▲', word: 'Tightened' },
   clear: { bg: '#009E73', fg: '#ffffff', shape: '●', word: 'Quiet' },
@@ -29,8 +31,19 @@ export function SpaceWeatherChip() {
   }, [check]);
 
   const a = sw.assessment;
-  const st = a ? STYLE[a.status] : null;
-  const label = a ? (a.status === 'block' ? 'EVA blocked' : a.status === 'tighten' ? 'Space weather: tightened' : 'Space weather: quiet') : sw.loading ? 'Space weather: checking…' : 'Space weather: unknown';
+  const noData = a ? hasNoData(a) : false;
+  const st = a ? STYLE[noData ? 'nodata' : a.status] : null;
+  const label = a
+    ? a.status === 'block'
+      ? 'EVA blocked'
+      : a.status === 'tighten'
+        ? 'Space weather: tightened'
+        : noData
+          ? 'Space weather: no data'
+          : 'Space weather: quiet'
+    : sw.loading
+      ? 'Space weather: checking…'
+      : 'Space weather: unknown';
   const fetched = a ? fmtTime(a.fetchedAt) : null;
 
   return (
@@ -57,6 +70,12 @@ export function SpaceWeatherChip() {
           {a ? (
             <>
               <p className="font-semibold">{spaceWeatherHeadline(a)}</p>
+              {a.missing.length > 0 && (
+                <p className="rounded bg-white/10 px-2 py-1">
+                  {noData ? "Can't confirm it's quiet: " : 'Partial data: '}
+                  NASA DONKI gave {noDataText(a)} (request failed or unreadable).
+                </p>
+              )}
               {a.reasons.length > 0 && (
                 <ul className="list-disc space-y-0.5 pl-4">
                   {a.reasons.map((r) => (

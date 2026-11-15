@@ -12,6 +12,7 @@ import {
   assessSpaceWeather,
   effectiveConstraints,
   eventIds,
+  hasNoData,
   marsArrivals,
   ringOxygenFor,
   spaceWeatherAlert,
@@ -31,12 +32,13 @@ const H = 3_600_000;
 const C = { oxygenMin: 480, reservePct: 20, maxSlopeDeg: 25 };
 
 describe('space-weather rules on real DONKI data', () => {
-  it('a quiet day is clear, and says which endpoint had no data', () => {
+  it('a day with FLR missing and no events is "no data", never "quiet" (#80)', () => {
     const sw = assessSpaceWeather(TODAY, new Date(TODAY.fetchedAt));
     expect(sw.status).toBe('clear');
     expect(sw.reasons).toEqual([]);
     expect(sw.missing).toEqual(['FLR']);
-    expect(spaceWeatherHeadline(sw)).toBe('Space weather: quiet');
+    expect(hasNoData(sw)).toBe(true);
+    expect(spaceWeatherHeadline(sw)).toBe('Space weather: no data from FLR');
     expect(spaceWeatherAlert(sw)).toBeNull();
     expect(effectiveConstraints(C, sw)).toBe(C);
   });
@@ -243,5 +245,37 @@ describe('space weather in the app (demo storm)', () => {
     store().setSpaceWeatherDemo(false);
     await settle();
     expect(store().alerts.some((a) => a.kind === 'space-weather')).toBe(false);
+  });
+});
+
+describe('no-data state (#80)', () => {
+  const now = new Date(TODAY.fetchedAt);
+  const allOk: DonkiBundle = { ...TODAY, flr: [] };
+
+  it('success: every feed answered and nothing is happening → quiet', async () => {
+    const sw = assessSpaceWeather(await fetchDonki(now, fakeDonki(allOk).fetch, 'K'), now);
+    expect(sw.missing).toEqual([]);
+    expect(hasNoData(sw)).toBe(false);
+    expect(spaceWeatherHeadline(sw)).toBe('Space weather: quiet');
+  });
+
+  it('failure: a feed 404s and nothing else is found → no data naming the feed, not quiet', async () => {
+    const sw = assessSpaceWeather(await fetchDonki(now, fakeDonki(allOk, { FLR: 404 }).fetch, 'K'), now);
+    expect(sw.missing).toEqual(['FLR']);
+    expect(hasNoData(sw)).toBe(true);
+    expect(spaceWeatherHeadline(sw)).toBe('Space weather: no data from FLR');
+    expect(spaceWeatherHeadline(sw)).not.toMatch(/quiet/);
+  });
+
+  it('failure: several feeds fail → all of them are named', async () => {
+    const sw = assessSpaceWeather(await fetchDonki(now, fakeDonki(allOk, { FLR: 500, SEP: 404 }).fetch, 'K'), now);
+    expect(spaceWeatherHeadline(sw)).toBe('Space weather: no data from SEP, FLR');
+  });
+
+  it('partial data: a real event still wins, and the missing feed is still listed', () => {
+    const sw = assessSpaceWeather({ ...STORM, flr: null }, new Date(STORM.fetchedAt));
+    expect(sw.status).toBe('block');
+    expect(sw.missing).toEqual(['FLR']);
+    expect(hasNoData(sw)).toBe(false);
   });
 });

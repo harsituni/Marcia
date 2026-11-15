@@ -175,7 +175,7 @@ export function Brief() {
           <h2 className="brief-h2">Space weather at plan time</h2>
           {snapshot ? (
             <p>
-              <b>{snapshot.status === 'block' ? 'BLOCKED' : snapshot.status === 'tighten' ? 'TIGHTENED' : 'QUIET'}</b>: {snapshot.reason}. DONKI events:{' '}
+              <b>{snapshot.status === 'block' ? 'BLOCKED' : snapshot.status === 'tighten' ? 'TIGHTENED' : snapshot.reason.startsWith('no data from ') ? 'NO DATA' : 'QUIET'}</b>: {snapshot.reason}. DONKI events:{' '}
               {snapshot.eventIds.join(', ') || 'none'}. Fetched {fmtTime(snapshot.fetchedAt)}
               {snapshot.demo && ' (historical-storm demo)'}. SEP and flare readings are near-Earth stand-ins for Mars.
             </p>
