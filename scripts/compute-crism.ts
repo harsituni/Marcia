@@ -16,35 +16,36 @@ export const CRISM_SOURCE_URL = 'https://zenodo.org/api/records/5575824/files/je
 export const CRISM_CITATION =
   'Parente, M., Saranathan, A. M., Itoh, Y., Tarnas, J. D., Seelos, F. P., & Mustard, J. F. (2021). Map of the dominant mineralogy over and around the Mars2020 landing ellipse with correspondent spectral signatures [Data set]. Zenodo. https://doi.org/10.5281/zenodo.5575824. Licensed CC BY 4.0.';
 
+// M34: colours from Paul Tol's colour-blind-safe "muted" scheme; tests/colorblind.test.ts checks them.
 export const CRISM_CATEGORIES = [
   {
     value: 1,
     name: 'Olivine and olivine mixtures',
-    color: '#e76f51',
+    color: '#117733',
     classes: ['Olivine', 'Olivine+ Smectite', 'Olv. Smect + 2.2µm'],
   },
   {
     value: 2,
     name: 'Carbonates',
-    color: '#e9c46a',
+    color: '#DDCC77',
     classes: ['Mg-Carbonate', 'Carb. + 2.2µm'],
   },
   {
     value: 3,
     name: 'Smectites',
-    color: '#2a9d8f',
+    color: '#88CCEE',
     classes: ['Fe/Mg-Smectite', 'Mg-Smectite 2'],
   },
   {
     value: 4,
     name: 'Pyroxenes',
-    color: '#f4a261',
+    color: '#CC6677',
     classes: ['High Ca. Pyroxene', 'Low Ca. Pyroxene'],
   },
   {
     value: 5,
     name: 'Kaolinite',
-    color: '#8d5a3b',
+    color: '#AA4499',
     classes: ['Kaolinite'],
   },
 ] as const;
@@ -188,7 +189,10 @@ async function main(): Promise<void> {
     await runOk(gdal, 'gdal_translate', ['-q', '-of', 'ENVI', '-ot', 'Byte', classSeed, classRaw]);
     writeFileSync(classRaw, classes);
     const classRaster = join(temp, 'crism-classes.tif');
-    await runOk(gdal, 'gdal_translate', ['-q', '-of', 'GTiff', '-ot', 'Byte', classRaw, classRaster]);
+    // The ENVI header round-trip can round the georeferencing; pin it back to the exact grid.
+    await runOk(gdal, 'gdal_translate', [
+      '-q', '-of', 'GTiff', '-ot', 'Byte', '-a_srs', wkt, '-a_ullr', String(xMin), String(yMax), String(xMax), String(yMin), classRaw, classRaster,
+    ]);
     const classInfo = await info(classRaster);
     if (!same(classInfo.size, elevation.size) || !same(classInfo.geoTransform, transform) || classInfo.coordinateSystem?.wkt !== wkt)
       fail('CRISM class raster is not exactly on the elevation grid.');

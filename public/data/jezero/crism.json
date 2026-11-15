@@ -4,7 +4,7 @@
   "categories": [
     {
       "name": "Olivine and olivine mixtures",
-      "color": "#e76f51",
+      "color": "#117733",
       "classes": [
         "Olivine",
         "Olivine+ Smectite",
@@ -14,7 +14,7 @@
     },
     {
       "name": "Carbonates",
-      "color": "#e9c46a",
+      "color": "#DDCC77",
       "classes": [
         "Mg-Carbonate",
         "Carb. + 2.2µm"
@@ -23,7 +23,7 @@
     },
     {
       "name": "Smectites",
-      "color": "#2a9d8f",
+      "color": "#88CCEE",
       "classes": [
         "Fe/Mg-Smectite",
         "Mg-Smectite 2"
@@ -32,7 +32,7 @@
     },
     {
       "name": "Pyroxenes",
-      "color": "#f4a261",
+      "color": "#CC6677",
       "classes": [
         "High Ca. Pyroxene",
         "Low Ca. Pyroxene"
@@ -41,7 +41,7 @@
     },
     {
       "name": "Kaolinite",
-      "color": "#8d5a3b",
+      "color": "#AA4499",
       "classes": [
         "Kaolinite"
       ],
