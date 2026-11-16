@@ -152,6 +152,14 @@ interface AppState {
   route: RouteState;
   /** Asks the engine for a route from the habitat through the current stops. */
   planRoute: () => Promise<void>;
+  /** #99: true while "Find best order" waits for the engine. */
+  ordering: boolean;
+  /** #99: the stops before and after the last "Find best order"; Undo is offered only while the stops still match `after`. */
+  orderUndo: { before: Stop[]; after: Stop[] } | null;
+  /** Reorders the stops into the shortest out-and-back walk, then reroutes. Plan mode, 3+ stops. */
+  bestOrder: () => Promise<void>;
+  /** Puts the stops back in the order before the last `bestOrder`, then reroutes. */
+  undoOrder: () => void;
 
   /** Which map overlays are switched on. */
   layers: Record<LayerId, boolean>;
@@ -227,7 +235,13 @@ let ringSeq = 0;
 let ringOxygen: number | null = null;
 let ringBusy = false;
 let replanSeq = 0;
+let orderSeq = 0;
 let liveCheck: DonkiCheck | null = null;
+
+/** Same stops in the same order, ignoring everything but id, cell and name (#99). */
+export function sameStops(a: Stop[], b: Stop[]): boolean {
+  return a.length === b.length && a.every((s, i) => s.id === b[i]!.id && s.name === b[i]!.name && s.cell.x === b[i]!.cell.x && s.cell.y === b[i]!.cell.y);
+}
 
 /** Returns the engine, initialised with `grid` (once per grid). */
 function engineFor(grid: GridData, make: () => EngineClient): EngineClient {
@@ -483,6 +497,40 @@ export const useAppStore = create<AppState>()((set, get) => ({
     }
     // Constraints changes reroute through here, so the ring follows them too.
     if (get().layers.ring || get().mode === 'walk') await get().planRing();
+  },
+
+  ordering: false,
+  orderUndo: null,
+  bestOrder: async () => {
+    const s = get();
+    if (s.data.status !== 'ready' || s.mode !== 'plan' || s.route.status === 'planning' || s.drawingZone || s.ordering || s.stops.length < 3) return;
+    const before = s.stops;
+    const seq = ++orderSeq;
+    set({ ordering: true });
+    try {
+      const ids = await engineFor(s.data.grid, s.makeEngine).order(before, planConstraints(s).maxSlopeDeg);
+      // Stops added, moved, removed or renamed meanwhile: the answer is for a list that's gone.
+      if (seq !== orderSeq || !sameStops(get().stops, before)) return;
+      const byId = new Map(before.map((st) => [st.id, st]));
+      const after = ids.map((id) => byId.get(id)).filter((st): st is Stop => !!st);
+      if (after.length !== before.length || after.every((st, i) => st.id === before[i]!.id)) {
+        get().showNotice('The stops are already in the shortest order.');
+        return;
+      }
+      set({ stops: after, orderUndo: { before, after } });
+      await get().planRoute();
+    } catch (err) {
+      if (seq === orderSeq) get().showNotice(`Couldn't find a better order: ${errorMessage(err)}`);
+    } finally {
+      if (seq === orderSeq) set({ ordering: false });
+    }
+  },
+  undoOrder: () => {
+    const u = get().orderUndo;
+    if (!u || get().mode !== 'plan' || get().route.status === 'planning' || !sameStops(get().stops, u.after)) return;
+    orderSeq++;
+    set({ stops: u.before, orderUndo: null, ordering: false });
+    void get().planRoute();
   },
 
   layers: { difficulty: false, sand: false, geology: false, crism: false, ring: false },

@@ -22,7 +22,7 @@ import type { Cell, Constraints, GridMeta, RingResult, RouteRequest, RouteResult
 import { AStar, astarRoute } from './astar.ts';
 import { avoidMask } from './avoid.ts';
 import type { AvoidZone } from './avoid.ts';
-import { replanRoute } from './replan.ts';
+import { bestStopOrder, replanRoute } from './replan.ts';
 import { HomeField, ringPolygon } from './ring.ts';
 import { slopeDegAt } from './terrain.ts';
 
@@ -33,11 +33,14 @@ export type WorkerIn =
   /** M32: replace the crew's avoid zones (cells inside are blocked). No reply. */
   | { type: 'avoid'; zones: AvoidZone[] }
   | { type: 'ring'; oxygenLeftMin: number; maxSlopeDeg?: number }
-  | { type: 'replan'; from: Cell; stops: Stop[]; constraints: Constraints; oxygenLeftMin: number };
+  | { type: 'replan'; from: Cell; stops: Stop[]; constraints: Constraints; oxygenLeftMin: number }
+  /** #99: the visiting order of `stops` with the shortest out-and-back walk from the habitat. */
+  | { type: 'order'; stops: Stop[]; maxSlopeDeg: number };
 
 export type WorkerOut =
   | { type: 'route'; result: RouteResult }
   | { type: 'ring'; result: RingResult }
+  | { type: 'order'; ids: string[] }
   | { type: 'error'; message: string };
 
 interface EngineState {
@@ -120,6 +123,8 @@ export function handleMessage(state: EngineState | null, msg: WorkerIn): { state
     }
     case 'ring':
       return { state, out: { type: 'ring', result: ringPolygon(routerFor(state, msg.maxSlopeDeg).home, msg.oxygenLeftMin) } };
+    case 'order':
+      return { state, out: { type: 'order', ids: bestStopOrder(routerFor(state, msg.maxSlopeDeg).astar, msg.stops, state.meta) } };
     case 'replan':
       return { state, out: { type: 'route', result: replanRoute(routerFor(state, msg.constraints.maxSlopeDeg).astar, msg, state.meta) } };
   }
