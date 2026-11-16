@@ -34,10 +34,12 @@
  * - `api.click(sel)`, `api.ensureExpanded(sel)` (clicks only if `aria-expanded="false"`),
  *   `api.waitFor(sel, ms)`, `api.sleep(ms)`.
  */
+import { PLAN_CHAPTERS } from './chapters/plan.ts';
 import { START_CHAPTER } from './chapters/start.ts';
 import type { TourChapter } from './types.ts';
 
 /** Every chapter, in menu order. */
 export const CHAPTERS: TourChapter[] = [
   START_CHAPTER,
+  ...PLAN_CHAPTERS, // #104: chapters 2-4
 ];
