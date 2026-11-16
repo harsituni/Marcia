@@ -95,6 +95,115 @@ describe('stop card', () => {
   });
 });
 
+describe('renaming (#98)', () => {
+  const pencil = () => host.querySelector<HTMLButtonElement>('button[aria-label="Rename stop"]');
+  const field = () => host.querySelector<HTMLInputElement>('input[aria-label="Stop name"]');
+  const type = async (value: string) =>
+    act(async () => {
+      const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+      set.call(field()!, value);
+      field()!.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  const key = (k: string) => act(async () => field()!.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true })));
+
+  it('pencil, type, Enter saves and updates the title', async () => {
+    await select('stop-a');
+    await act(async () => pencil()!.click());
+    await type('  Crater rim ');
+    await key('Enter');
+    expect(field()).toBeNull();
+    expect(store().stops[0]!.name).toBe('Crater rim');
+    expect(host.querySelector('h2')?.textContent).toBe('Crater rim');
+  });
+
+  it('blur saves', async () => {
+    await select('stop-a');
+    await act(async () => pencil()!.click());
+    await type('Via blur');
+    await act(async () => field()!.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
+    expect(store().stops[0]!.name).toBe('Via blur');
+  });
+
+  it('Escape cancels and keeps the card open', async () => {
+    await select('stop-a');
+    await act(async () => pencil()!.click());
+    await type('Nope');
+    await key('Escape');
+    expect(store().stops[0]!.name).toBe(stops[0]!.name);
+    expect(card()).not.toBeNull();
+    expect(field()).toBeNull();
+  });
+
+  it('an empty name is rejected', async () => {
+    await select('stop-a');
+    await act(async () => pencil()!.click());
+    await type('   ');
+    await key('Enter');
+    expect(store().stops[0]!.name).toBe(stops[0]!.name);
+    expect(host.querySelector('h2')?.textContent).toBe(stops[0]!.name);
+  });
+
+  it('the field is capped at 40 characters', async () => {
+    await select('stop-a');
+    await act(async () => pencil()!.click());
+    expect(field()!.maxLength).toBe(40);
+  });
+
+  it('is not offered in Walk mode', async () => {
+    await act(async () => store().setMode('walk'));
+    await select('stop-a');
+    expect(pencil()).toBeNull();
+  });
+});
+
+describe('goal and science value (#98)', () => {
+  const goalPencil = () => host.querySelector<HTMLButtonElement>('button[aria-label="Edit goal"]');
+  const box = () => host.querySelector<HTMLTextAreaElement>('textarea[aria-label="Stop goal"]');
+  const star = (n: number) => host.querySelector<HTMLButtonElement>(`[role="radiogroup"] button[aria-label="${n} of 3"]`);
+  const type = async (value: string) =>
+    act(async () => {
+      const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
+      set.call(box()!, value);
+      box()!.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  const key = (k: string, ctrlKey = false) =>
+    act(async () => box()!.dispatchEvent(new KeyboardEvent('keydown', { key: k, ctrlKey, bubbles: true, cancelable: true })));
+
+  it('pencil, type, Ctrl+Enter saves the goal; Escape cancels', async () => {
+    await select('stop-a');
+    await act(async () => goalPencil()!.click());
+    await type('  Core the delta layers ');
+    await key('Enter', true);
+    expect(box()).toBeNull();
+    expect(store().stops[0]!.goal).toBe('Core the delta layers');
+    await act(async () => goalPencil()!.click());
+    await type('Nope');
+    await key('Escape');
+    expect(store().stops[0]!.goal).toBe('Core the delta layers');
+    expect(card()).not.toBeNull();
+  });
+
+  it('the goal box is capped at 200 characters', async () => {
+    await select('stop-a');
+    await act(async () => goalPencil()!.click());
+    expect(box()!.maxLength).toBe(200);
+  });
+
+  it('clicking a star sets the science value', async () => {
+    await select('stop-a');
+    await act(async () => star(2)!.click());
+    expect(store().stops[0]!.scienceValue).toBe(2);
+    expect(star(2)!.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('neither is editable in Walk mode', async () => {
+    await act(async () => store().setMode('walk'));
+    await select('stop-a');
+    expect(goalPencil()).toBeNull();
+    expect(star(1)).toBeNull();
+  });
+});
+
 describe('selection', () => {
   it('ignores unknown ids', () => {
     store().selectStop('nope');

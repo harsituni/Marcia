@@ -250,7 +250,7 @@ function StopMarkers({ editable }: { editable: boolean }) {
     <>
       {stops.map((stop, i) => (
         // Keyed by number too: react-leaflet doesn't update `title` on an existing marker.
-        <StopMarker key={`${stop.id}#${i}`} stop={stop} n={i + 1} editable={editable} />
+        <StopMarker key={`${stop.id}#${i}#${stop.name}`} stop={stop} n={i + 1} editable={editable} />
       ))}
     </>
   );
