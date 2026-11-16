@@ -36,10 +36,12 @@
  */
 import { PLAN_CHAPTERS } from './chapters/plan.ts';
 import { START_CHAPTER } from './chapters/start.ts';
+import { WALK_CHAPTERS } from './chapters/walk.ts';
 import type { TourChapter } from './types.ts';
 
 /** Every chapter, in menu order. */
 export const CHAPTERS: TourChapter[] = [
   START_CHAPTER,
   ...PLAN_CHAPTERS, // #104: chapters 2-4
+  ...WALK_CHAPTERS, // #105: chapters 5-6
 ];
