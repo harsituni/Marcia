@@ -15,6 +15,10 @@ Marcia is a Mars EVA planning and walk-guidance app for Jezero and Gale craters.
 3. **Walk.** Walk mode guides the crew on a helmet-style HUD. It shows oxygen
    margin and hazard alerts, plus a rover photo for each stop.
 
+New to Marcia? Press **Tutorial** in the header for a hands-on tour in short
+chapters: you do each step yourself, **Show me** does it for you, and you can
+skip at any time.
+
 ## Stack
 
 - [Vite](https://vite.dev/) + [React](https://react.dev/) + TypeScript
