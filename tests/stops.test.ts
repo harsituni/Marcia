@@ -86,6 +86,82 @@ describe('renaming stops (#98)', () => {
   });
 });
 
+describe('editing goal and science value (#98)', () => {
+  const stopOf = (id: string) => store().stops.find((s) => s.id === id)!;
+
+  it('sets the goal (trimmed, capped at 200, may be cleared) and the science value, without rerouting', async () => {
+    await settle();
+    const requests = routeRequests().length;
+    expect(store().editStop('stop-a', { goal: '  Sample the layered rock  ' })).toBe(true);
+    expect(stopOf('stop-a').goal).toBe('Sample the layered rock');
+    store().editStop('stop-a', { goal: 'g'.repeat(300) });
+    expect(stopOf('stop-a').goal).toBe('g'.repeat(200));
+    expect(store().editStop('stop-a', { goal: '   ' })).toBe(true);
+    expect(stopOf('stop-a').goal).toBe('');
+    expect(store().editStop('stop-b', { scienceValue: 3 })).toBe(true);
+    expect(stopOf('stop-b').scienceValue).toBe(3);
+    await settle();
+    expect(routeRequests()).toHaveLength(requests);
+  });
+
+  it('rejects a science value outside 1-3 and unknown stops', () => {
+    const before = stopOf('stop-b').scienceValue;
+    expect(store().editStop('stop-b', { scienceValue: 4 as never })).toBe(false);
+    expect(stopOf('stop-b').scienceValue).toBe(before);
+    expect(store().editStop('nope', { goal: 'x' })).toBe(false);
+  });
+
+  it('carries a changed goal and science value in the share plan, and leaves unchanged presets out', () => {
+    store().editStop('stop-a', { goal: 'New goal', scienceValue: 1 }); // stop-a is 3 in the fixture
+    const plan = sharePlanFrom(store(), 'test', new Date());
+    expect(plan.stops.find((s) => s.id === 'stop-a')).toMatchObject({ goal: 'New goal', scienceValue: 1 });
+    const untouched = plan.stops.find((s) => s.id === 'stop-b')!;
+    expect(untouched.goal).toBeUndefined();
+    expect(untouched.scienceValue).toBeUndefined();
+  });
+});
+
+describe('crew stop geology from the map layers (#98)', () => {
+  const real = useAppStore.getState().stopScience;
+  afterEach(() => useAppStore.setState({ stopScience: real }));
+  const stopOf = (id: string) => store().stops.find((s) => s.id === id)!;
+
+  it('fills a new crew stop from the layers at its cell, and refills it when moved', async () => {
+    useAppStore.setState({ stopScience: async (c) => ({ geologyUnit: `Unit at ${c.x},${c.y}`, minerals: ['Carbonates'] }) });
+    expect(store().addStop({ x: 50, y: 85 })).toBe(true);
+    await settle();
+    expect(stopOf('custom-1')).toMatchObject({ geologyUnit: 'Unit at 50,85', minerals: ['Carbonates'] });
+    expect(store().moveStop('custom-1', { x: 51, y: 85 })).toBe(true);
+    await settle();
+    expect(stopOf('custom-1').geologyUnit).toBe('Unit at 51,85');
+  });
+
+  it('ignores a late answer for a cell the stop has already left', async () => {
+    let answer!: (s: { geologyUnit: string; minerals: string[] }) => void;
+    useAppStore.setState({ stopScience: () => new Promise((r) => (answer = r)) });
+    store().addStop({ x: 50, y: 85 });
+    const late = answer;
+    useAppStore.setState({ stopScience: async () => ({ geologyUnit: 'New spot', minerals: [] }) });
+    store().moveStop('custom-1', { x: 51, y: 85 });
+    await settle();
+    late({ geologyUnit: 'Old spot', minerals: ['Olivine'] });
+    await settle();
+    expect(stopOf('custom-1')).toMatchObject({ geologyUnit: 'New spot', minerals: [] });
+  });
+
+  it('keeps a preset stop’s researched geology when it is moved', async () => {
+    const calls: Cell[] = [];
+    useAppStore.setState({ stopScience: async (c) => (calls.push(c), { geologyUnit: 'From map', minerals: [] }) });
+    const before = stopOf('stop-a');
+    const target = { x: before.cell.x + 1, y: before.cell.y };
+    if (!isWalkable(grid(), target)) return;
+    store().moveStop('stop-a', target);
+    await settle();
+    expect(stopOf('stop-a').geologyUnit).toBe(before.geologyUnit);
+    expect(calls).toEqual([]);
+  });
+});
+
 describe('stop editing', () => {
   it('starts with the stops from stops.json', () => {
     expect(store().stops.map((s) => s.id)).toEqual(['stop-a', 'stop-b', 'stop-c', 'stop-d']);

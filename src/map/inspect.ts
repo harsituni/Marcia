@@ -4,11 +4,13 @@
  * from it, and the geology and CRISM overlay images. Pure functions here;
  * `MapView.tsx` supplies the pixel sampler in the browser.
  */
-import type { Cell } from '../contracts.ts';
+import type { Cell, GridMeta } from '../contracts.ts';
 import type { GridData } from '../data/grid.ts';
 import { siteHasLayer } from '../data/sites.ts';
 import type { SiteInfo } from '../data/sites.ts';
 import { slopeDegAt } from '../engine/terrain.ts';
+import { CRISM_FILES, loadCrismLegend } from './crism.ts';
+import { GEOLOGY_FILES, loadGeologyLegend } from './geology.ts';
 
 /** Shown when a value is missing (never a made-up value). */
 export const NO_DATA = 'no data';
@@ -171,6 +173,44 @@ async function decodePixels(url: string, gridWidth: number, gridHeight: number):
   } catch {
     return null;
   }
+}
+
+/** #98: what a crew-added stop shows for its rock unit and minerals. */
+export interface StopScience {
+  geologyUnit: string;
+  minerals: string[];
+}
+
+/** Rock unit for a cell no layer covers (same word the stop card treats as unknown). */
+export const UNKNOWN_UNIT = 'Unknown';
+
+/**
+ * #98: rock unit and mineral at `cell`, read from the site's geology and CRISM
+ * layers the same way Inspect reads them. A site without a layer, or a cell
+ * the layer doesn't map, gives "Unknown" / no minerals: nothing is guessed.
+ */
+export async function scienceAt(
+  siteUrl: string,
+  site: SiteInfo | undefined,
+  meta: Pick<GridMeta, 'width' | 'height'>,
+  cell: Cell,
+): Promise<StopScience> {
+  const base = siteUrl.replace(/\/$/, '');
+  const [geology, crism] = await Promise.all([
+    siteHasLayer(site, 'geology') ? loadGeologyLegend(base) : null,
+    siteHasLayer(site, 'crism') ? loadCrismLegend(base) : null,
+  ]);
+  const [geologySampler, crismSampler] = await Promise.all([
+    geology ? loadPixelSampler(`${base}/${GEOLOGY_FILES.image}`, meta.width, meta.height) : null,
+    crism ? loadPixelSampler(`${base}/${CRISM_FILES.image}`, meta.width, meta.height) : null,
+  ]);
+  const sample: SamplePixel = (layer, x, y) => (layer === 'geology' ? geologySampler : crismSampler)?.(x, y) ?? null;
+  const unit = geology ? classAt('geology', geology.units, geology.source, cell, sample) : null;
+  const mineral = crism ? classAt('crism', crism.categories, crism.source, cell, sample) : null;
+  return {
+    geologyUnit: unit && unit.value !== null ? unit.value : UNKNOWN_UNIT,
+    minerals: mineral && mineral.value !== null ? [mineral.value] : [],
+  };
 }
 
 /** Display text for a reading's value, or its reason when it has none. */

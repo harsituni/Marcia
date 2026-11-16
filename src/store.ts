@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { START_ID } from './contracts.ts';
-import type { Alert, Cell, Constraints, RingResult, RouteResult, Stop } from './contracts.ts';
+import type { Alert, Cell, Constraints, RingResult, RouteResult, ScienceValue, Stop } from './contracts.ts';
 import { browserStorage, checkDonki } from './data/donki.ts';
 import type { DonkiCheck } from './data/donki.ts';
 import { loadGrid } from './data/grid.ts';
@@ -19,6 +19,8 @@ import { clampConstraints } from './plan/constraints.ts';
 import { MIN_ZONE_POINTS } from './engine/avoid.ts';
 import type { AvoidZone } from './engine/avoid.ts';
 import type { Vision } from './map/colorblind.ts';
+import { UNKNOWN_UNIT, scienceAt } from './map/inspect.ts';
+import type { StopScience } from './map/inspect.ts';
 import { positionAt } from './walk/hud.ts';
 import type { WalkState } from './walk/hud.ts';
 import { IDLE_REPLAY, RING_STEP_MIN, advance, walkAt } from './walk/replay.ts';
@@ -109,6 +111,10 @@ interface AppState {
   removeStop: (id: string) => void;
   /** #98: renames a stop (trimmed, 1-40 chars). Returns false and keeps the old name if empty. Never reroutes. */
   renameStop: (id: string, name: string) => boolean;
+  /** #98: edits a stop's goal (trimmed, up to 200 chars, may be empty) and/or science value (1-3). Never reroutes. */
+  editStop: (id: string, patch: { goal?: string; scienceValue?: ScienceValue }) => boolean;
+  /** #98: rock unit and minerals at a cell from the site's map layers, for crew-added stops; tests swap it out. */
+  stopScience: (cell: Cell) => Promise<StopScience>;
 
   /** M32: crew-drawn avoid zones (polygons of grid cells); the router treats cells inside as blocked. */
   avoidZones: AvoidZone[];
@@ -249,10 +255,17 @@ export function isWalkable(grid: GridData, cell: Cell): boolean {
   return Number.isFinite(grid.cost[cell.y * width + cell.x]!);
 }
 
-/** A crew-added stop; the science fields stay blank until someone fills them in. */
 /** Longest stop name the crew can type (#98). */
 export const MAX_STOP_NAME = 40;
+/** Longest stop goal the crew can type (#98). */
+export const MAX_STOP_GOAL = 200;
 
+/** True for a stop the crew added (not one of the site's preset stops). */
+export function isCrewStop(grid: Pick<GridData, 'stops'>, id: string): boolean {
+  return !grid.stops.some((s) => s.id === id);
+}
+
+/** A crew-added stop; its rock unit and minerals are filled from the map layers (#98), the rest by the crew. */
 function customStop(cell: Cell, existing: Stop[]): Stop {
   let n = 1;
   while (existing.some((s) => s.id === `custom-${n}`)) n++;
@@ -349,14 +362,19 @@ export const useAppStore = create<AppState>()((set, get) => ({
   addStop: (cell) => {
     const data = get().data;
     if (data.status !== 'ready' || !isWalkable(data.grid, cell)) return false;
-    set({ stops: [...get().stops, customStop(cell, get().stops)] });
+    const stop = customStop(cell, get().stops);
+    set({ stops: [...get().stops, stop] });
+    fillScience(stop.id);
     void get().planRoute();
     return true;
   },
   moveStop: (id, cell) => {
     const data = get().data;
     if (data.status !== 'ready' || !isWalkable(data.grid, cell)) return false;
-    set({ stops: get().stops.map((s) => (s.id === id ? { ...s, cell } : s)) });
+    // #98: a crew stop's rock unit and minerals are read from the map, so they follow it; preset stops keep theirs.
+    const crew = isCrewStop(data.grid, id);
+    set({ stops: get().stops.map((s) => (s.id === id ? { ...s, cell, ...(crew ? { geologyUnit: UNKNOWN_UNIT, minerals: [] } : {}) } : s)) });
+    if (crew) fillScience(id);
     void get().planRoute();
     return true;
   },
@@ -372,6 +390,23 @@ export const useAppStore = create<AppState>()((set, get) => ({
     if (!next || !get().stops.some((s) => s.id === id)) return false;
     set({ stops: get().stops.map((s) => (s.id === id ? { ...s, name: next } : s)) });
     return true;
+  },
+  editStop: (id, patch) => {
+    if (!get().stops.some((s) => s.id === id)) return false;
+    const goal = patch.goal === undefined ? undefined : patch.goal.trim().slice(0, MAX_STOP_GOAL).trim();
+    const value = patch.scienceValue;
+    if (value !== undefined && value !== 1 && value !== 2 && value !== 3) return false;
+    set({
+      stops: get().stops.map((s) =>
+        s.id === id ? { ...s, ...(goal !== undefined ? { goal } : {}), ...(value !== undefined ? { scienceValue: value } : {}) } : s,
+      ),
+    });
+    return true;
+  },
+  stopScience: (cell) => {
+    const s = get();
+    if (s.data.status !== 'ready') return Promise.resolve({ geologyUnit: UNKNOWN_UNIT, minerals: [] });
+    return scienceAt(siteDataUrl(DATA_ROOT, s.siteId), s.sites.find((x) => x.id === s.siteId), s.data.grid.meta, cell);
   },
 
   avoidZones: [],
@@ -616,7 +651,11 @@ export const useAppStore = create<AppState>()((set, get) => ({
     for (const p of plan.stops) {
       if (!isWalkable(data.grid, p.cell)) continue; // a damaged or foreign link; skip rather than break routing
       const base = byId.get(p.id);
-      stops.push(base ? { ...base, cell: p.cell, ...(p.name ? { name: p.name.slice(0, MAX_STOP_NAME) } : {}) } : { ...customStop(p.cell, stops), id: p.id, name: p.name ?? p.id });
+      const stop = base ? { ...base, cell: p.cell, ...(p.name ? { name: p.name.slice(0, MAX_STOP_NAME) } : {}) } : { ...customStop(p.cell, stops), id: p.id, name: p.name ?? p.id };
+      // #98: the crew's own goal and science value travel with the link.
+      if (p.goal !== undefined) stop.goal = p.goal.slice(0, MAX_STOP_GOAL);
+      if (p.scienceValue !== undefined) stop.scienceValue = p.scienceValue;
+      stops.push(stop);
     }
     if (stops.length < plan.stops.length) get().showNotice(`${plan.stops.length - stops.length} shared stop(s) were off the walkable grid and were left out.`);
     set({
@@ -624,6 +663,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       constraints: clampConstraints(plan.constraints, data.grid.meta.maxSlopeDeg),
       sharedSpaceWeather: plan.spaceWeather,
     });
+    for (const s of stops) if (!byId.has(s.id)) fillScience(s.id);
     await get().planRoute();
     get().setBriefOpen(true);
   },
@@ -631,11 +671,21 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
 /** The current plan as a share-link payload (M37). */
 export function sharePlanFrom(s: AppState, app: string, createdAt: Date): SharedPlan {
-  const siteStops = s.data.status === 'ready' ? new Map(s.data.grid.stops.map((x) => [x.id, x.name])) : new Map<string, string>();
+  const siteStops = s.data.status === 'ready' ? new Map(s.data.grid.stops.map((x) => [x.id, x])) : new Map<string, Stop>();
   const a = s.spaceWeather.assessment;
   return {
     siteId: s.siteId,
-    stops: s.stops.map((x) => (siteStops.get(x.id) === x.name ? { id: x.id, cell: x.cell } : { id: x.id, cell: x.cell, name: x.name })),
+    // Only what differs from the site's preset (everything, for a crew stop) goes in the link.
+    stops: s.stops.map((x) => {
+      const base = siteStops.get(x.id);
+      return {
+        id: x.id,
+        cell: x.cell,
+        ...(base?.name !== x.name ? { name: x.name } : {}),
+        ...((base ? base.goal !== x.goal : x.goal !== '') ? { goal: x.goal } : {}),
+        ...((base ? base.scienceValue !== x.scienceValue : x.scienceValue !== 1) ? { scienceValue: x.scienceValue } : {}),
+      };
+    }),
     constraints: s.constraints,
     spaceWeather: a
       ? { status: a.status, reason: a.reasons[0]?.text ?? (hasNoData(a) ? noDataText(a) : 'quiet'), eventIds: eventIds(a), fetchedAt: a.fetchedAt, demo: s.spaceWeather.demo }
@@ -733,6 +783,27 @@ function syncAvoid(s: AppState): void {
   if (s.data.status !== 'ready') return;
   engineFor(s.data.grid, s.makeEngine).avoid(s.avoidZones);
   void s.planRoute();
+}
+
+/**
+ * #98: fills a crew stop's rock unit and minerals from the map layers at its
+ * cell. Dropped if the stop has moved, gone, or the site changed meanwhile.
+ */
+function fillScience(id: string): void {
+  const s = useAppStore.getState();
+  const stop = s.stops.find((x) => x.id === id);
+  if (!stop) return;
+  const { cell } = stop;
+  const siteId = s.siteId;
+  s.stopScience(cell).then(
+    (science) => {
+      const now = useAppStore.getState();
+      const cur = now.stops.find((x) => x.id === id);
+      if (now.siteId !== siteId || !cur || cur.cell.x !== cell.x || cur.cell.y !== cell.y) return;
+      useAppStore.setState({ stops: now.stops.map((x) => (x.id === id ? { ...x, ...science } : x)) });
+    },
+    () => {}, // a layer that can't load leaves "Unknown", as before
+  );
 }
 
 /** Drops the cached engine (tests, or after swapping the factory). */

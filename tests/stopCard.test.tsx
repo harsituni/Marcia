@@ -156,6 +156,54 @@ describe('renaming (#98)', () => {
   });
 });
 
+describe('goal and science value (#98)', () => {
+  const goalPencil = () => host.querySelector<HTMLButtonElement>('button[aria-label="Edit goal"]');
+  const box = () => host.querySelector<HTMLTextAreaElement>('textarea[aria-label="Stop goal"]');
+  const star = (n: number) => host.querySelector<HTMLButtonElement>(`[role="radiogroup"] button[aria-label="${n} of 3"]`);
+  const type = async (value: string) =>
+    act(async () => {
+      const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
+      set.call(box()!, value);
+      box()!.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  const key = (k: string, ctrlKey = false) =>
+    act(async () => box()!.dispatchEvent(new KeyboardEvent('keydown', { key: k, ctrlKey, bubbles: true, cancelable: true })));
+
+  it('pencil, type, Ctrl+Enter saves the goal; Escape cancels', async () => {
+    await select('stop-a');
+    await act(async () => goalPencil()!.click());
+    await type('  Core the delta layers ');
+    await key('Enter', true);
+    expect(box()).toBeNull();
+    expect(store().stops[0]!.goal).toBe('Core the delta layers');
+    await act(async () => goalPencil()!.click());
+    await type('Nope');
+    await key('Escape');
+    expect(store().stops[0]!.goal).toBe('Core the delta layers');
+    expect(card()).not.toBeNull();
+  });
+
+  it('the goal box is capped at 200 characters', async () => {
+    await select('stop-a');
+    await act(async () => goalPencil()!.click());
+    expect(box()!.maxLength).toBe(200);
+  });
+
+  it('clicking a star sets the science value', async () => {
+    await select('stop-a');
+    await act(async () => star(2)!.click());
+    expect(store().stops[0]!.scienceValue).toBe(2);
+    expect(star(2)!.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('neither is editable in Walk mode', async () => {
+    await act(async () => store().setMode('walk'));
+    await select('stop-a');
+    expect(goalPencil()).toBeNull();
+    expect(star(1)).toBeNull();
+  });
+});
+
 describe('selection', () => {
   it('ignores unknown ids', () => {
     store().selectStop('nope');
