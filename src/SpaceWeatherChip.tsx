@@ -50,6 +50,7 @@ export function SpaceWeatherChip() {
     <div className="relative">
       <button
         type="button"
+        data-tour="space-weather"
         aria-expanded={open}
         aria-controls={panelId}
         title={NEAR_EARTH_NOTE}

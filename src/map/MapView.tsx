@@ -56,7 +56,7 @@ export function MapView() {
         <ResizeWithContainer bounds={data.status === 'ready' ? gridBounds(data.grid.meta) : null} />
       </MapContainer>
       {editing && (
-        <p className="pointer-events-none absolute top-3 left-1/2 z-[1000] -translate-x-1/2 rounded-md bg-black/60 px-3 py-1.5 text-xs whitespace-nowrap">
+        <p data-tour="map-hint" className="pointer-events-none absolute top-3 left-1/2 z-[1000] -translate-x-1/2 rounded-md bg-black/60 px-3 py-1.5 text-xs whitespace-nowrap">
           {drawing
             ? 'Click the map to add corners of the avoid zone · Finish when done'
             : inspecting
@@ -135,6 +135,7 @@ export function InspectToggle() {
     <button
       type="button"
       aria-pressed={on}
+      data-tour="inspect"
       onClick={() => setInspecting(!on)}
       className={`absolute top-3 left-14 z-[1000] rounded-md px-3 py-1.5 text-xs shadow-lg backdrop-blur-sm ${
         on ? 'bg-mars text-white' : 'bg-black/70 text-white/90 hover:bg-black/85'

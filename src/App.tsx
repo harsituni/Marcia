@@ -7,6 +7,7 @@ import { SpaceWeatherChip } from './SpaceWeatherChip.tsx';
 import { SettingsPanel } from './plan/SettingsPanel.tsx';
 import { StopCard } from './plan/StopCard.tsx';
 import { SiteSwitcher } from './SiteSwitcher.tsx';
+import { FirstVisitPrompt, Tour, TutorialButton } from './tour/Tour.tsx';
 import { useAppStore, walkWarnings } from './store.ts';
 import { Hud } from './walk/Hud.tsx';
 import { ViewToggle } from './view3d/ViewToggle.tsx';
@@ -117,7 +118,7 @@ export function App() {
     <div className="flex h-full flex-col">
       <header className="flex items-center justify-between gap-4 border-b border-white/10 px-4 py-2">
         <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
-          <h1 className="flex items-center gap-2 text-lg font-semibold tracking-wide">
+          <h1 data-tour="logo" className="flex items-center gap-2 text-lg font-semibold tracking-wide">
             <img src="/marcia-logo.svg" alt="" aria-hidden="true" className="size-7" />
             Marcia
           </h1>
@@ -127,6 +128,7 @@ export function App() {
           <SpaceWeatherChip />
           <BriefButton />
           <AboutButton />
+          <TutorialButton />
           <ViewToggle />
           <ModeSwitch />
         </div>
@@ -155,6 +157,8 @@ export function App() {
         {mode === 'plan' && <RoutePanel />}
       </main>
       <Brief />
+      <FirstVisitPrompt />
+      <Tour />
     </div>
   );
 }

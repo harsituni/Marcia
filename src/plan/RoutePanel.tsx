@@ -96,7 +96,7 @@ function Stats({ result, usable, stops }: { result: RouteResult; usable: number;
     .filter((v, i, a) => a.indexOf(v) === i);
 
   return (
-    <div>
+    <div data-tour="route-stats">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
         <Stat label="Distance" value={formatDistance(result.distanceM)} />
         <Stat label="Walking time" value={formatDuration(result.timeMin)} />
@@ -156,7 +156,7 @@ function Profile({ result, grid, stops }: { result: RouteResult; grid: GridData;
   };
 
   return (
-    <figure>
+    <figure data-tour="elevation-profile">
       <figcaption className="mb-1 flex flex-wrap justify-between gap-x-4 text-xs text-white/60">
         <span>Elevation profile</span>
         <span className="tabular-nums">

@@ -225,7 +225,49 @@ interface AppState {
   sharedSpaceWeather: SpaceWeatherSnapshot | null;
   /** Restores a plan from a share link: site, stops, constraints; reruns the route and opens the brief. */
   restoreShared: (plan: SharedPlan) => Promise<void>;
+
+  /** #103: the hands-on tutorial. `chapter` null shows the chapter menu. */
+  tour: TourProgress;
+  /**
+   * Opens the tutorial (the menu, or `chapterId` at step 0). The first call saves the
+   * crew's setup and starts a practice run on Jezero with its preset stops, Plan mode, 2D.
+   * Opening a chapter while the tutorial runs starts a fresh practice run (the saved setup is kept).
+   */
+  startTour: (chapterId?: string | null) => Promise<void>;
+  /** Closes the tutorial and puts the saved setup back exactly, avoid zones in the engine included. */
+  endTour: () => Promise<void>;
+  /** Moves to step `step` (of `chapter`, or the current chapter). */
+  setTourStep: (step: number, chapter?: string | null) => void;
 }
+
+/** #103: where the tutorial is. */
+export interface TourProgress {
+  active: boolean;
+  chapter: string | null;
+  step: number;
+}
+
+/** #103: the crew's setup, saved when the tutorial starts and restored when it ends. */
+interface TourSnapshot {
+  siteId: string;
+  stops: Stop[];
+  constraints: Constraints;
+  layers: Record<LayerId, boolean>;
+  colorVision: Vision;
+  mode: Mode;
+  mapKind: MapKind;
+  demo: boolean;
+  avoidZones: AvoidZone[];
+  orderUndo: AppState['orderUndo'];
+  selectedStopId: string | null;
+  briefOpen: boolean;
+  inspecting: boolean;
+  inspectCell: Cell | null;
+}
+let tourSnapshot: TourSnapshot | null = null;
+
+/** Map layers all off, for the tutorial's practice run. */
+const NO_LAYERS: Record<LayerId, boolean> = { difficulty: false, sand: false, geology: false, crism: false, ring: false };
 
 let engine: EngineClient | null = null;
 let engineGrid: GridData | null = null;
@@ -714,6 +756,92 @@ export const useAppStore = create<AppState>()((set, get) => ({
     for (const s of stops) if (!byId.has(s.id)) fillScience(s.id);
     await get().planRoute();
     get().setBriefOpen(true);
+  },
+
+  // #103: the tutorial is a practice run; the crew's own setup is saved and put back afterwards.
+  tour: { active: false, chapter: null, step: 0 },
+  startTour: async (chapterId = null) => {
+    const wasActive = get().tour.active;
+    set({ tour: { active: true, chapter: chapterId, step: 0 } });
+    // Back to the menu keeps the practice run as it is; every chapter starts from a fresh one.
+    if (wasActive && chapterId === null) return;
+    get().pauseWalk();
+    const s = get();
+    if (!wasActive) tourSnapshot = {
+      siteId: s.siteId,
+      stops: s.stops,
+      constraints: s.constraints,
+      layers: s.layers,
+      colorVision: s.colorVision,
+      mode: s.mode,
+      mapKind: s.mapKind,
+      demo: s.spaceWeather.demo,
+      avoidZones: s.avoidZones,
+      orderUndo: s.orderUndo,
+      selectedStopId: s.selectedStopId,
+      briefOpen: s.briefOpen,
+      inspecting: s.inspecting,
+      inspectCell: s.inspectCell,
+    };
+    set({
+      drawingZone: null,
+      selectedStopId: null,
+      briefOpen: false,
+      inspecting: false,
+      inspectCell: null,
+      mapKind: '2d',
+      layers: NO_LAYERS,
+      colorVision: 'normal',
+      orderUndo: null,
+    });
+    get().setMode('plan');
+    if (s.spaceWeather.demo) get().setSpaceWeatherDemo(false);
+    clearTimeout(replanTimer);
+    if (get().siteId !== DEFAULT_SITE_ID && get().sites.some((x) => x.id === DEFAULT_SITE_ID)) {
+      set({ constraints: DEFAULT_CONSTRAINTS });
+      await get().setSite(DEFAULT_SITE_ID); // a new site starts with no avoid zones and its preset stops
+      return;
+    }
+    const data = get().data;
+    set({
+      stops: data.status === 'ready' ? data.grid.stops : get().stops,
+      avoidZones: [],
+      constraints: data.status === 'ready' ? clampConstraints(DEFAULT_CONSTRAINTS, data.grid.meta.maxSlopeDeg) : DEFAULT_CONSTRAINTS,
+    });
+    syncAvoid(get());
+  },
+  endTour: async () => {
+    const snap = tourSnapshot;
+    tourSnapshot = null;
+    set({ tour: { active: false, chapter: null, step: 0 } });
+    if (!snap) return;
+    get().pauseWalk();
+    clearTimeout(replanTimer);
+    set({ drawingZone: null, inspecting: false, inspectCell: null, selectedStopId: null, briefOpen: false });
+    if (snap.siteId !== get().siteId) await get().setSite(snap.siteId);
+    set({
+      stops: snap.stops,
+      constraints: snap.constraints,
+      layers: snap.layers,
+      colorVision: snap.colorVision,
+      avoidZones: snap.avoidZones,
+      orderUndo: snap.orderUndo,
+      mapKind: snap.mapKind,
+    });
+    if (get().spaceWeather.demo !== snap.demo) get().setSpaceWeatherDemo(snap.demo);
+    get().setMode(snap.mode);
+    set({
+      selectedStopId: snap.selectedStopId && get().stops.some((x) => x.id === snap.selectedStopId) ? snap.selectedStopId : null,
+      inspecting: snap.inspecting,
+      inspectCell: snap.inspectCell,
+    });
+    syncAvoid(get()); // the engine gets the crew's zones back, then the route is planned again
+    if (snap.briefOpen) get().setBriefOpen(true);
+  },
+  setTourStep: (step, chapter) => {
+    const t = get().tour;
+    if (!t.active) return;
+    set({ tour: { active: true, chapter: chapter === undefined ? t.chapter : chapter, step: Math.max(0, step) } });
   },
 }));
 
