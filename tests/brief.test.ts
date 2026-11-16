@@ -179,6 +179,37 @@ describe('opening a share link', () => {
     expect(store().briefOpen).toBe(true);
   });
 
+  it('keeps renamed preset and custom stop names through a share link (#98)', async () => {
+    await startApp();
+    await store().setSite('gale');
+    const preset = store().stops[0]!;
+    expect(store().addStop({ x: 440, y: 140 })).toBe(true);
+    const custom = store().stops.at(-1)!;
+    expect(store().renameStop(preset.id, 'Renamed preset')).toBe(true);
+    expect(store().renameStop(custom.id, 'My custom stop')).toBe(true);
+    expect(store().editStop(custom.id, { goal: 'Check the vein', scienceValue: 2 })).toBe(true);
+    expect(store().editStop(preset.id, { scienceValue: 1 })).toBe(true);
+    const url = shareUrl('https://x/Marcia/', sharePlanFrom(store(), 'test', new Date()));
+
+    resetEngine();
+    useAppStore.setState({ data: { status: 'idle' }, route: { status: 'idle' }, stops: [], siteId: 'jezero', constraints: DEFAULT_CONSTRAINTS, briefOpen: false });
+    await startApp();
+    const req = parseHash(new URL(url).hash);
+    if (req.kind !== 'shared') throw new Error(req.kind);
+    await store().restoreShared(req.plan);
+    expect(store().stops.find((s) => s.id === preset.id)!.name).toBe('Renamed preset');
+    expect(store().stops.find((s) => s.id === custom.id)).toMatchObject({ name: 'My custom stop', goal: 'Check the vein', scienceValue: 2 });
+    expect(store().stops.find((s) => s.id === preset.id)!.scienceValue).toBe(1);
+  });
+
+  it('decodes old links without goal or science value, and rejects a bad science value (#98)', () => {
+    const plan: SharedPlan = { ...PLAN, stops: [{ id: 'a', cell: { x: 1, y: 2 } }, { id: 'b', cell: { x: 3, y: 4 }, goal: 'G' }] };
+    const back = decodeShare(encodeShare(plan));
+    expect(back.stops).toEqual(plan.stops);
+    const bad = encodeShare({ ...PLAN, stops: [{ id: 'a', cell: { x: 1, y: 2 }, scienceValue: 5 as never }] });
+    expect(() => decodeShare(bad)).toThrow(/science value/);
+  });
+
   it('skips stops that are off the walkable grid', async () => {
     await startApp();
     const plan: SharedPlan = { ...PLAN, siteId: 'jezero', stops: [{ id: 'berea', cell: { x: 64, y: 238 } }, { id: 'x', cell: { x: 9999, y: 1 }, name: 'X' }], spaceWeather: null };

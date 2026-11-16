@@ -7,7 +7,7 @@
  * Opening the link restores the site, stops, constraints and the space-weather
  * snapshot, reruns the route and opens the brief.
  */
-import type { Cell, Constraints } from '../contracts.ts';
+import type { Cell, Constraints, ScienceValue } from '../contracts.ts';
 import type { SpaceWeatherStatus } from '../engine/spaceWeather.ts';
 
 export const SHARE_VERSION = 1;
@@ -27,8 +27,12 @@ export interface SpaceWeatherSnapshot {
 export interface SharedStop {
   id: string;
   cell: Cell;
-  /** Only for stops the crew added (not in the site's stops.json). */
+  /** For crew-added stops, and preset stops the crew renamed (#98). */
   name?: string;
+  /** #98: only when the crew set or changed it. */
+  goal?: string;
+  /** #98: only when the crew set or changed it. */
+  scienceValue?: ScienceValue;
 }
 
 export interface SharedPlan {
@@ -47,7 +51,8 @@ export interface SharedPlan {
 interface Wire {
   v: number;
   s: string;
-  p: [string, number, number, string?][];
+  /** [id, x, y, name?, goal?, scienceValue?]; null marks a skipped optional field. */
+  p: [string, number, number, (string | null)?, (string | null)?, (ScienceValue | null)?][];
   c: [number, number, number];
   w: [SpaceWeatherStatus, string, string[], string, 0 | 1] | null;
   a: string;
@@ -60,7 +65,12 @@ export function encodeShare(plan: SharedPlan): string {
   const wire: Wire = {
     v: SHARE_VERSION,
     s: plan.siteId,
-    p: plan.stops.map((s) => (s.name === undefined ? [s.id, s.cell.x, s.cell.y] : [s.id, s.cell.x, s.cell.y, s.name])),
+    p: plan.stops.map((s) => {
+      // Optional fields by position; null fills a gap so later ones keep their place (#98).
+      const e: [string, number, number, (string | null)?, (string | null)?, (ScienceValue | null)?] = [s.id, s.cell.x, s.cell.y, s.name ?? null, s.goal ?? null, s.scienceValue ?? null];
+      while (e.length > 3 && e[e.length - 1] === null) e.pop();
+      return e;
+    }),
     c: [plan.constraints.oxygenMin, plan.constraints.reservePct, plan.constraints.maxSlopeDeg],
     w: plan.spaceWeather
       ? [plan.spaceWeather.status, plan.spaceWeather.reason, plan.spaceWeather.eventIds, plan.spaceWeather.fetchedAt, plan.spaceWeather.demo ? 1 : 0]
@@ -89,8 +99,17 @@ export function decodeShare(payload: string): SharedPlan {
   const stops = w.p.map((e): SharedStop => {
     if (!Array.isArray(e) || typeof e[0] !== 'string' || e[0].length === 0 || e[0].length > 64) bad('bad stop');
     if (!Number.isInteger(e[1]) || !Number.isInteger(e[2]) || e[1] < 0 || e[2] < 0) bad(`bad cell for stop ${e[0]}`);
-    if (e[3] !== undefined && (typeof e[3] !== 'string' || e[3].length > 80)) bad(`bad name for stop ${e[0]}`);
-    return e[3] === undefined ? { id: e[0], cell: { x: e[1], y: e[2] } } : { id: e[0], cell: { x: e[1], y: e[2] }, name: e[3] };
+    const [id, x, y, name, goal, value] = e;
+    if (name != null && (typeof name !== 'string' || name.length > 80)) bad(`bad name for stop ${id}`);
+    if (goal != null && (typeof goal !== 'string' || goal.length > 400)) bad(`bad goal for stop ${id}`);
+    if (value != null && value !== 1 && value !== 2 && value !== 3) bad(`bad science value for stop ${id}`);
+    return {
+      id,
+      cell: { x, y },
+      ...(name != null ? { name } : {}),
+      ...(goal != null ? { goal } : {}),
+      ...(value != null ? { scienceValue: value } : {}),
+    };
   });
   if (new Set(stops.map((s) => s.id)).size !== stops.length) bad('duplicate stop ids');
   if (!Array.isArray(w.c) || w.c.length !== 3 || !w.c.every((n) => typeof n === 'number' && Number.isFinite(n))) bad('bad constraints');
