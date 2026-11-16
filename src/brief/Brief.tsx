@@ -66,7 +66,7 @@ export function AboutButton() {
   }, [open]);
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="rounded-md bg-white/5 px-2.5 py-1 text-sm hover:bg-white/10">
+      <button type="button" data-tour="about" onClick={() => setOpen(true)} className="rounded-md bg-white/5 px-2.5 py-1 text-sm hover:bg-white/10">
         About
       </button>
       {open && (
@@ -92,7 +92,7 @@ export function BriefButton() {
   const ready = useAppStore((s) => s.route.status === 'ready');
   const open = useAppStore((s) => s.setBriefOpen);
   return (
-    <button type="button" onClick={() => open(true)} disabled={!ready} className="rounded-md bg-white/5 px-2.5 py-1 text-sm hover:bg-white/10 disabled:opacity-40">
+    <button type="button" data-tour="brief" onClick={() => open(true)} disabled={!ready} className="rounded-md bg-white/5 px-2.5 py-1 text-sm hover:bg-white/10 disabled:opacity-40">
       Mission brief
     </button>
   );
@@ -160,10 +160,10 @@ export function Brief() {
     <div className="brief-overlay fixed inset-0 z-[2000] overflow-auto bg-black/70 p-2 sm:p-6" role="dialog" aria-modal="true" aria-label="Mission brief">
       <div className="brief-toolbar mx-auto mb-2 flex max-w-[210mm] flex-wrap items-center justify-end gap-2 text-sm">
         {copied && <span role="status">{copied}</span>}
-        <button type="button" onClick={() => void copy()} className="rounded bg-white px-3 py-1 font-semibold text-black">
+        <button type="button" data-tour="copy-link" onClick={() => void copy()} className="rounded bg-white px-3 py-1 font-semibold text-black">
           Copy link
         </button>
-        <button type="button" onClick={() => window.print()} className="rounded bg-white px-3 py-1 font-semibold text-black">
+        <button type="button" data-tour="download-pdf" onClick={() => window.print()} className="rounded bg-white px-3 py-1 font-semibold text-black">
           Download PDF
         </button>
         <button type="button" onClick={close} className="rounded border border-white/40 px-3 py-1">

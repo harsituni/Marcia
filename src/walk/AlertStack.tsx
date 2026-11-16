@@ -70,6 +70,7 @@ export function AlertStack({ atHabitat = false }: { atHabitat?: boolean }) {
       {!atHabitat && danger && (
         <button
           type="button"
+          data-tour="head-home"
           onClick={() => void headHome()}
           disabled={replanning}
           className="rounded-lg border border-white bg-white px-3 py-1.5 text-sm font-semibold text-regolith shadow-lg backdrop-blur-sm hover:bg-white/90 disabled:opacity-60"
@@ -80,6 +81,7 @@ export function AlertStack({ atHabitat = false }: { atHabitat?: boolean }) {
       {!atHabitat && (
         <button
           type="button"
+          data-tour="replan"
           onClick={() => void replanWalk()}
           disabled={replanning || !canDrop}
           title={!canDrop ? 'No science stops left on this route to drop.' : undefined}

@@ -70,17 +70,17 @@ export function Hud() {
       )}
       <div className="relative flex flex-wrap items-start justify-between gap-2">
         {/* Left chrome: oxygen + MEDA stacked so the map centre stays clear. */}
-        <div className="flex flex-col gap-1.5">
+        <div data-tour="hud-left" className="flex flex-col gap-1.5">
           <OxygenGauge hud={hud} />
           <MedaChip />
         </div>
         {/* Centre column: compass with alerts/replan tucked under it (not mid-map). */}
-        <div className="order-first flex w-full min-w-0 flex-col gap-1.5 sm:order-none sm:w-auto sm:max-w-xl sm:flex-1">
+        <div data-tour="hud-centre" className="order-first flex w-full min-w-0 flex-col gap-1.5 sm:order-none sm:w-auto sm:max-w-xl sm:flex-1">
           <Compass hud={hud} />
           <AlertStack atHabitat={hud.phase !== 'walking'} />
         </div>
         {/* Right chrome: return margin + RAD. */}
-        <div className="flex flex-col gap-1.5">
+        <div data-tour="hud-right" className="flex flex-col gap-1.5">
           <MarginGauge hud={hud} totalMin={route.result.timeMin} />
           <RadChip />
         </div>

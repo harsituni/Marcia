@@ -272,7 +272,7 @@ export function LayerToggles() {
   return (
     // #83: the one panel in the bottom-left column. It holds the route key, is wide enough that
     // long citations wrap instead of clipping, and stops below the zoom buttons; the stop card sits to its right.
-    <fieldset className="absolute bottom-3 left-3 z-[1000] max-h-[calc(100%-6.5rem)] w-80 overflow-y-auto rounded-lg bg-black/70 px-3 py-2 text-xs shadow-lg backdrop-blur-sm">
+    <fieldset data-tour="layers" className="absolute bottom-3 left-3 z-[1000] max-h-[calc(100%-6.5rem)] w-80 overflow-y-auto rounded-lg bg-black/70 px-3 py-2 text-xs shadow-lg backdrop-blur-sm">
       <legend className="sr-only">Map layers</legend>
       {routeReady && <RouteLegend />}
       <p className="mb-1 font-semibold" aria-hidden="true">

@@ -16,7 +16,7 @@ export function SiteSwitcher() {
 
   const site = sites.find((s) => s.id === siteId);
   return (
-    <div className="flex items-center gap-2 text-sm">
+    <div data-tour="site" className="flex items-center gap-2 text-sm">
       <label htmlFor={id} className="sr-only">
         EVA site
       </label>
